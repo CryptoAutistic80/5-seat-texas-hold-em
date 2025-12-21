@@ -286,7 +286,18 @@ export function useChipsView() {
         return parseInt(result[0] as string);
     }, []);
 
-    return { getBalance, getTreasuryBalance };
+    const getCedraBalance = useCallback(async (address?: string): Promise<number> => {
+        const addr = address || account?.address?.toString();
+        if (!addr) return 0;
+
+        try {
+            return await cedra.getAccountCEDRAAmount({ accountAddress: addr });
+        } catch {
+            return 0;
+        }
+    }, [account?.address]);
+
+    return { getBalance, getTreasuryBalance, getCedraBalance };
 }
 
 /**

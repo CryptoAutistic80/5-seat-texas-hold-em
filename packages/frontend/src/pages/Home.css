@@ -127,6 +127,11 @@
     color: var(--color-text);
 }
 
+/* Chips Section */
+.chips-section {
+    margin-bottom: var(--spacing-2xl);
+}
+
 /* Info Section */
 .info-section {
     margin-top: var(--spacing-2xl);

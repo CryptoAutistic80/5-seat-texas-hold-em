@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../components/wallet-provider";
+import { ChipsPanel } from "../components/ChipsPanel";
 import { useContractActions } from "../hooks/useContract";
 import { MODULES } from "../config/contracts";
 import { Plus, Users, Coins, ArrowRight } from "lucide-react";
@@ -68,6 +69,10 @@ export function Home() {
                         {connected ? "Create New Table" : "Connect Wallet First"}
                     </button>
                 </div>
+            </section>
+
+            <section className="chips-section">
+                <ChipsPanel />
             </section>
 
             <section className="info-section">

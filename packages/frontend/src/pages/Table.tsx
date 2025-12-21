@@ -7,6 +7,7 @@ import { PokerTable } from "../components/PokerTable";
 import { ActionPanel } from "../components/ActionPanel";
 import { TableInfo } from "../components/TableInfo";
 import { LifecyclePanel } from "../components/LifecyclePanel";
+import { ChipsPanel } from "../components/ChipsPanel";
 import type { TableConfig, TableState, SeatInfo, GameState } from "../types";
 import "./Table.css";
 
@@ -203,6 +204,8 @@ export function Table() {
                     {config && tableState && (
                         <TableInfo config={config} state={tableState} address={address!} />
                     )}
+
+                    <ChipsPanel balance={balance} onBalanceRefresh={refreshBalance} />
 
                     <section className="join-panel">
                         <div className="panel-header">
