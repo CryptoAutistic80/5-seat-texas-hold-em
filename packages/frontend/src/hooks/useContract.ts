@@ -285,9 +285,9 @@ export function useContractActions() {
             });
 
             // Wait for transaction confirmation
-            await cedra.waitForTransaction({ transactionHash: response.hash });
+            const receipt = await cedra.waitForTransaction({ transactionHash: response.hash });
 
-            return response;
+            return { hash: response.hash, result: receipt };
         },
         [signAndSubmitTransaction, account]
     );
