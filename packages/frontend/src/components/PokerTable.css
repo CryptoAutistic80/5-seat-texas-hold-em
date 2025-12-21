@@ -130,6 +130,11 @@
     animation: glow 1.5s ease-in-out infinite;
 }
 
+.seat.selected {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.25);
+}
+
 .seat.player-seat {
     background: rgba(0, 255, 136, 0.1);
 }
