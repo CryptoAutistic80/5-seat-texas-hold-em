@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../components/wallet-provider";
+import { useContractActions } from "../hooks/useContract";
+import { MODULES } from "../config/contracts";
 import { Plus, Users, Coins, ArrowRight } from "lucide-react";
 import "./Home.css";
 
@@ -102,6 +104,9 @@ export function Home() {
 }
 
 function CreateTableModal({ onClose }: { onClose: () => void }) {
+    const { account } = useWallet();
+    const { createTable } = useContractActions();
+    const navigate = useNavigate();
     const [config, setConfig] = useState({
         smallBlind: 5,
         bigBlind: 10,
@@ -109,12 +114,86 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
         maxBuyIn: 10000,
         ante: 0,
         straddleEnabled: true,
+        feeRecipient: account?.address?.toString() || "",
     });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [newTableAddress, setNewTableAddress] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (account?.address && !config.feeRecipient) {
+            setConfig((prev) => ({ ...prev, feeRecipient: prev.feeRecipient || account.address.toString() }));
+        }
+    }, [account?.address, config.feeRecipient]);
+
+    const validationError = useMemo(() => {
+        const errors: string[] = [];
+
+        if (config.smallBlind <= 0 || config.bigBlind <= 0) {
+            errors.push("Blinds must be greater than zero.");
+        }
+        if (config.bigBlind <= config.smallBlind) {
+            errors.push("Big blind must be greater than small blind.");
+        }
+        if (config.minBuyIn <= 0 || config.maxBuyIn <= 0) {
+            errors.push("Buy-in limits must be greater than zero.");
+        }
+        if (config.minBuyIn > config.maxBuyIn) {
+            errors.push("Min buy-in cannot exceed max buy-in.");
+        }
+        if (!config.feeRecipient.trim()) {
+            errors.push("Fee recipient address is required.");
+        }
+
+        return errors.join(" ");
+    }, [config.bigBlind, config.feeRecipient, config.maxBuyIn, config.minBuyIn, config.smallBlind]);
+
+    const extractTableAddress = (txResult: unknown) => {
+        const events = (txResult as { events?: { type?: string; data?: Record<string, unknown> }[] }).events || [];
+        const creationEvent = events.find(
+            (event) =>
+                event.type === `${MODULES.POKER_EVENTS}::TableCreated` ||
+                event.type?.toLowerCase().includes("tablecreated")
+        );
+        const data = creationEvent?.data as Record<string, unknown> | undefined;
+        return (data?.table_addr as string) || (data?.tableAddress as string) || null;
+    };
+
     const handleCreate = async () => {
-        // TODO: Implement table creation
-        console.log("Creating table with config:", config);
-        onClose();
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError(null);
+            setNewTableAddress(null);
+
+            const response = await createTable(
+                config.smallBlind,
+                config.bigBlind,
+                config.minBuyIn,
+                config.maxBuyIn,
+                config.feeRecipient.trim(),
+                config.ante,
+                config.straddleEnabled
+            );
+
+            const tableAddr = extractTableAddress(response.result);
+
+            if (tableAddr) {
+                setNewTableAddress(tableAddr);
+            } else {
+                setError("Table created, but the table address was not found in the transaction events.");
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to create table.";
+            setError(message);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -123,11 +202,24 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                 <h2>Create New Table</h2>
 
                 <div className="form-group">
+                    <label>Fee Recipient Address</label>
+                    <input
+                        type="text"
+                        value={config.feeRecipient}
+                        onChange={(e) => setConfig({ ...config, feeRecipient: e.target.value })}
+                        placeholder="0x..."
+                        disabled={isSubmitting}
+                    />
+                </div>
+
+                <div className="form-group">
                     <label>Small Blind</label>
                     <input
                         type="number"
                         value={config.smallBlind}
                         onChange={(e) => setConfig({ ...config, smallBlind: Number(e.target.value) })}
+                        min={1}
+                        disabled={isSubmitting}
                     />
                 </div>
 
@@ -137,6 +229,8 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                         type="number"
                         value={config.bigBlind}
                         onChange={(e) => setConfig({ ...config, bigBlind: Number(e.target.value) })}
+                        min={1}
+                        disabled={isSubmitting}
                     />
                 </div>
 
@@ -147,6 +241,8 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                             type="number"
                             value={config.minBuyIn}
                             onChange={(e) => setConfig({ ...config, minBuyIn: Number(e.target.value) })}
+                            min={1}
+                            disabled={isSubmitting}
                         />
                     </div>
                     <div className="form-group">
@@ -155,6 +251,8 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                             type="number"
                             value={config.maxBuyIn}
                             onChange={(e) => setConfig({ ...config, maxBuyIn: Number(e.target.value) })}
+                            min={1}
+                            disabled={isSubmitting}
                         />
                     </div>
                 </div>
@@ -165,6 +263,8 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                         type="number"
                         value={config.ante}
                         onChange={(e) => setConfig({ ...config, ante: Number(e.target.value) })}
+                        min={0}
+                        disabled={isSubmitting}
                     />
                 </div>
 
@@ -174,14 +274,45 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                             type="checkbox"
                             checked={config.straddleEnabled}
                             onChange={(e) => setConfig({ ...config, straddleEnabled: e.target.checked })}
+                            disabled={isSubmitting}
                         />
                         Allow Straddle
                     </label>
                 </div>
 
+                {validationError && <p className="error-text">{validationError}</p>}
+                {error && !validationError && <p className="error-text">{error}</p>}
+
+                {newTableAddress && (
+                    <div className="success-box">
+                        <p>Table created successfully!</p>
+                        <div className="link-row">
+                            <code className="table-link">{`/table/${newTableAddress}`}</code>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/table/${newTableAddress}`)}
+                            >
+                                Copy Link
+                            </button>
+                        </div>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => navigate(`/table/${newTableAddress}`)}
+                        >
+                            Go to Table
+                        </button>
+                    </div>
+                )}
+
                 <div className="modal-actions">
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleCreate}>Create Table</button>
+                    <button
+                        className="btn btn-primary"
+                        onClick={handleCreate}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? "Creating..." : "Create Table"}
+                    </button>
                 </div>
             </div>
         </div>
