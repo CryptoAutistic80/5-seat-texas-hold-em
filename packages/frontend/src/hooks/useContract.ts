@@ -116,13 +116,21 @@ export function useTableView() {
     }, []);
 
     const getCommunityCards = useCallback(async (tableAddress: string): Promise<number[]> => {
-        const result = await cedra.view({
-            payload: {
-                function: `${MODULES.TEXAS_HOLDEM}::get_community_cards`,
-                functionArguments: [tableAddress],
-            },
-        });
-        return (result[0] as string[]).map((c) => parseInt(c));
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_community_cards`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const cards = result[0];
+            //console.log("Community cards result:", cards);
+            if (!Array.isArray(cards)) return [];
+            return (cards as string[]).map((c) => parseInt(c));
+        } catch (e) {
+            console.warn("Failed to get community cards:", e);
+            return [];
+        }
     }, []);
 
     const getActionOn = useCallback(async (tableAddress: string): Promise<ActionState | null> => {
@@ -147,23 +155,37 @@ export function useTableView() {
     }, []);
 
     const getCurrentBets = useCallback(async (tableAddress: string): Promise<number[]> => {
-        const result = await cedra.view({
-            payload: {
-                function: `${MODULES.TEXAS_HOLDEM}::get_current_bets`,
-                functionArguments: [tableAddress],
-            },
-        });
-        return (result[0] as string[]).map((b) => parseInt(b));
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_current_bets`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const bets = result[0];
+            if (!Array.isArray(bets)) return [];
+            return (bets as string[]).map((b) => parseInt(b));
+        } catch (e) {
+            console.warn("Failed to get current bets:", e);
+            return [];
+        }
     }, []);
 
     const getPlayerStatuses = useCallback(async (tableAddress: string): Promise<number[]> => {
-        const result = await cedra.view({
-            payload: {
-                function: `${MODULES.TEXAS_HOLDEM}::get_player_statuses`,
-                functionArguments: [tableAddress],
-            },
-        });
-        return (result[0] as string[]).map((s) => parseInt(s));
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_player_statuses`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const statuses = result[0];
+            if (!Array.isArray(statuses)) return [];
+            return (statuses as string[]).map((s) => parseInt(s));
+        } catch (e) {
+            console.warn("Failed to get player statuses:", e);
+            return [];
+        }
     }, []);
 
     const getMinRaise = useCallback(async (tableAddress: string): Promise<number> => {

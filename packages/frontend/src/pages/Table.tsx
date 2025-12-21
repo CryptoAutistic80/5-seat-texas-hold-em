@@ -31,12 +31,14 @@ export function Table() {
     const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
     const [joining, setJoining] = useState(false);
 
-    const loadTableData = async () => {
+    const loadTableData = async (isBackground = false) => {
         if (!address) return;
 
         try {
-            setLoading(true);
-            setError(null);
+            if (!isBackground) {
+                setLoading(true);
+                setError(null);
+            }
 
             const [configData, stateData, seatsData, gameData] = await Promise.all([
                 getTableConfig(address),
@@ -64,9 +66,14 @@ export function Table() {
             }
         } catch (err) {
             console.error("Failed to load table:", err);
-            setError("Failed to load table data. Please check the address.");
+            // Only show full page error on initial load
+            if (!isBackground) {
+                setError("Failed to load table data. Please check the address.");
+            }
         } finally {
-            setLoading(false);
+            if (!isBackground) {
+                setLoading(false);
+            }
         }
     };
 
@@ -74,7 +81,7 @@ export function Table() {
         loadTableData();
 
         // Poll for updates every 3 seconds
-        const interval = setInterval(loadTableData, 3000);
+        const interval = setInterval(() => loadTableData(true), 3000);
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [address, account?.address]);
@@ -182,7 +189,7 @@ export function Table() {
         return (
             <div className="table-page error">
                 <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadTableData}>
+                <button className="btn btn-primary" onClick={() => loadTableData()}>
                     Retry
                 </button>
             </div>
