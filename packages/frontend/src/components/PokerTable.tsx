@@ -7,9 +7,18 @@ interface PokerTableProps {
     gameState: GameState | null;
     dealerSeat: number;
     playerSeat: number | null;
+    onSeatSelect?: (seatIndex: number) => void;
+    selectedSeat?: number | null;
 }
 
-export function PokerTable({ seats, gameState, dealerSeat, playerSeat }: PokerTableProps) {
+export function PokerTable({
+    seats,
+    gameState,
+    dealerSeat,
+    playerSeat,
+    onSeatSelect,
+    selectedSeat,
+}: PokerTableProps) {
     // Position seats around an oval table
     // Seat positions: 0=bottom, 1=bottom-left, 2=top-left, 3=top-right, 4=bottom-right
     const seatPositions = [
@@ -59,8 +68,17 @@ export function PokerTable({ seats, gameState, dealerSeat, playerSeat }: PokerTa
                 {seats.map((seat, idx) => (
                     <div
                         key={idx}
-                        className={`seat ${seat ? "occupied" : "empty"} ${isActionOn(idx) ? "action-on" : ""} ${idx === playerSeat ? "player-seat" : ""}`}
+                        className={`seat ${seat ? "occupied" : "empty"} ${isActionOn(idx) ? "action-on" : ""} ${idx === playerSeat ? "player-seat" : ""} ${selectedSeat === idx ? "selected" : ""}`}
                         style={seatPositions[idx]}
+                        onClick={() => !seat && onSeatSelect?.(idx)}
+                        onKeyDown={(event) => {
+                            if (!seat && onSeatSelect && (event.key === "Enter" || event.key === " ")) {
+                                event.preventDefault();
+                                onSeatSelect(idx);
+                            }
+                        }}
+                        role={!seat && onSeatSelect ? "button" : undefined}
+                        tabIndex={!seat && onSeatSelect ? 0 : undefined}
                     >
                         {idx === dealerSeat && <div className="dealer-button">D</div>}
 
