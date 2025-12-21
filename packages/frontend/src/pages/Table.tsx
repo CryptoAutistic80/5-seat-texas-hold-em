@@ -6,6 +6,7 @@ import { useChipsView, useContractActions, useTableView } from "../hooks/useCont
 import { PokerTable } from "../components/PokerTable";
 import { ActionPanel } from "../components/ActionPanel";
 import { TableInfo } from "../components/TableInfo";
+import { LifecyclePanel } from "../components/LifecyclePanel";
 import type { TableConfig, TableState, SeatInfo, GameState } from "../types";
 import "./Table.css";
 
@@ -264,6 +265,17 @@ export function Table() {
                         onSeatSelect={handleSeatSelect}
                         selectedSeat={selectedSeat}
                     />
+
+                    {gameState && (
+                        <LifecyclePanel
+                            tableAddress={address!}
+                            gameState={gameState}
+                            seats={seats}
+                            playerSeat={playerSeat}
+                            tableState={tableState}
+                            onRefresh={loadTableData}
+                        />
+                    )}
 
                     {connected && playerSeat !== null && gameState && (
                         <ActionPanel
