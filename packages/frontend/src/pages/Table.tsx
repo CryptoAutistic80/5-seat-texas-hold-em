@@ -218,8 +218,6 @@ export function Table() {
                         <TableInfo config={config} state={tableState} address={address!} />
                     )}
 
-                    <ChipsPanel balance={balance} onBalanceRefresh={refreshBalance} />
-
                     {connected && account?.address && config && (
                         <AdminPanel
                             tableAddress={address!}
@@ -292,6 +290,8 @@ export function Table() {
                             </button>
                         </form>
                     </section>
+
+                    <ChipsPanel balance={balance} onBalanceRefresh={refreshBalance} />
                 </aside>
 
                 <main className="table-main">
