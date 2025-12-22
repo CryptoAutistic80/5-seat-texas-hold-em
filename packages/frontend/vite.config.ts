@@ -5,6 +5,9 @@ import { resolve } from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    allowedHosts: true, // Allow ngrok and other tunneling services
+  },
   resolve: {
     alias: {
       // Fix for @cedra-labs/wallet-adapter-plugin resolution issue
