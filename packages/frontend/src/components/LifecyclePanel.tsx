@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { sha3_256 } from "@noble/hashes/sha3";
 import { Clock3, Eye, KeyRound, Loader2, Play, Shield, LogOut, Power, PowerOff } from "lucide-react";
 import { GAME_PHASES, PHASE_NAMES } from "../config/contracts";
 import { useContractActions } from "../hooks/useContract";
@@ -28,14 +29,19 @@ function formatDeadline(deadline?: number | null) {
     }
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+    return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+}
+
 async function hashSecret(secret: string): Promise<string | null> {
-    if (!secret || typeof window === "undefined" || !window.crypto?.subtle) return null;
+    if (!secret) return null;
 
     const encoder = new TextEncoder();
     const data = encoder.encode(secret);
-    const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const hashBytes = sha3_256(data);
+    return bytesToHex(hashBytes);
 }
 
 export function LifecyclePanel({
@@ -112,6 +118,8 @@ export function LifecyclePanel({
 
     // Count active (non-sitting-out) seats
     const activeSeats = useMemo(() => seats.filter(s => s && !s.sittingOut).length, [seats]);
+    const isSeatedPlayer = playerSeat !== null && !!seats[playerSeat];
+    const isActivePlayer = isSeatedPlayer && !seats[playerSeat!]?.sittingOut;
 
     // Admin can start when admin_only_start is on, otherwise anyone who is action-on player or admin
     const canStartHand = isAdminOnlyStart ? isAdmin : (isActionOnPlayer || isAdmin);
@@ -132,9 +140,25 @@ export function LifecyclePanel({
         return null;
     }, [gameState.phase, isPaused, activeSeats, isAdminOnlyStart, isAdmin, isActionOnPlayer]);
     const commitDisabled =
-        gameState.phase !== GAME_PHASES.COMMIT || !isActionOnPlayer || !secret || !secretHash || activeAction !== null;
+        gameState.phase !== GAME_PHASES.COMMIT || !isActivePlayer || !secret || !secretHash || activeAction !== null;
     const revealDisabled =
-        gameState.phase !== GAME_PHASES.REVEAL || !isActionOnPlayer || !secret || activeAction !== null;
+        gameState.phase !== GAME_PHASES.REVEAL || !isActivePlayer || !secret || activeAction !== null;
+
+    const commitHint = useMemo(() => {
+        if (gameState.phase !== GAME_PHASES.COMMIT) return null;
+        if (!isSeatedPlayer) return "Join the table to commit.";
+        if (!isActivePlayer) return "Sit in to commit.";
+        if (!secret) return "Enter or generate a secret to commit.";
+        return null;
+    }, [gameState.phase, isSeatedPlayer, isActivePlayer, secret]);
+
+    const revealHint = useMemo(() => {
+        if (gameState.phase !== GAME_PHASES.REVEAL) return null;
+        if (!isSeatedPlayer) return "Join the table to reveal.";
+        if (!isActivePlayer) return "Sit in to reveal.";
+        if (!secret) return "Enter the same secret you committed.";
+        return null;
+    }, [gameState.phase, isSeatedPlayer, isActivePlayer, secret]);
 
     const phaseMessage = () => {
         switch (gameState.phase) {
@@ -250,7 +274,7 @@ export function LifecyclePanel({
                     >
                         {activeAction === "commit" ? <Loader2 className="spin" size={16} /> : <Shield size={16} />} Submit Commit
                     </button>
-                    {!isActionOnPlayer && <small className="hint">Waiting for your turn to commit.</small>}
+                    {commitHint && <small className="hint">{commitHint}</small>}
                 </div>
             )}
 
@@ -287,7 +311,7 @@ export function LifecyclePanel({
                     >
                         {activeAction === "reveal" ? <Loader2 className="spin" size={16} /> : <Eye size={16} />} Reveal Secret
                     </button>
-                    {!isActionOnPlayer && <small className="hint">Waiting for your turn to reveal.</small>}
+                    {revealHint && <small className="hint">{revealHint}</small>}
                 </div>
             )}
 
