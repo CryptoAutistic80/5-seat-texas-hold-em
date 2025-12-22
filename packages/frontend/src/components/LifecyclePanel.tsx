@@ -162,6 +162,7 @@ export function LifecyclePanel({
             setStatus("Action submitted. Refreshing table...");
             await onRefresh();
         } catch (err) {
+            console.error(`Lifecycle action "${actionName}" failed:`, err);
             const message = err instanceof Error ? err.message : "Action failed.";
             setStatus(message);
         } finally {
@@ -322,6 +323,13 @@ export function LifecyclePanel({
                                 if (!secretHash) throw new Error("Unable to hash secret.");
                                 const hashBytes = hashSecretToBytes(secret);
                                 if (!hashBytes) throw new Error("Unable to hash secret.");
+                                const hashHex = "0x" + Array.from(hashBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+                                console.log("COMMIT DEBUG:", {
+                                    secret,
+                                    secretLength: secret.length,
+                                    hashHex,
+                                    hashBytesLength: hashBytes.length,
+                                });
                                 await submitCommit(tableAddress, hashBytes);
                             }, "commit")
                         }
@@ -361,7 +369,21 @@ export function LifecyclePanel({
 
                     <button
                         className="btn action"
-                        onClick={() => runLifecycleAction(() => revealSecret(tableAddress, new TextEncoder().encode(secret)), "reveal")}
+                        onClick={() => {
+                            const secretBytes = new TextEncoder().encode(secret);
+                            const secretHex = "0x" + Array.from(secretBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+                            // What the contract will compute
+                            const expectedHash = hashSecretToBytes(secret);
+                            const expectedHashHex = expectedHash ? "0x" + Array.from(expectedHash).map(b => b.toString(16).padStart(2, "0")).join("") : "null";
+                            console.log("REVEAL DEBUG:", {
+                                secret,
+                                secretLength: secret.length,
+                                secretHex,
+                                secretBytesLength: secretBytes.length,
+                                expectedHashHex,
+                            });
+                            runLifecycleAction(() => revealSecret(tableAddress, secretBytes), "reveal");
+                        }}
                         disabled={revealDisabled}
                     >
                         {activeAction === "reveal" ? <Loader2 className="spin" size={16} /> : <Eye size={16} />} Reveal Secret

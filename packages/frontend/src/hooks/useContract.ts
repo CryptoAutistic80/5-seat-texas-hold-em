@@ -388,11 +388,20 @@ export function useContractActions() {
         async (functionId: string, args: (string | number | boolean | Uint8Array)[]) => {
             if (!account) throw new Error("Wallet not connected");
 
+            // Helper to convert Uint8Array to hex string with 0x prefix
+            const serializeArg = (a: string | number | boolean | Uint8Array): string | number | boolean => {
+                if (a instanceof Uint8Array) {
+                    // Convert to hex string with 0x prefix for vector<u8>
+                    return "0x" + Array.from(a).map(b => b.toString(16).padStart(2, "0")).join("");
+                }
+                // Return primitives as-is
+                return a;
+            };
+
             const response = await signAndSubmitTransaction({
                 data: {
                     function: functionId as `${string}::${string}::${string}`,
-                    // Pass Uint8Array through directly; SDK serializes them as vector<u8>
-                    functionArguments: args.map((a) => a instanceof Uint8Array ? a : a.toString()),
+                    functionArguments: args.map(serializeArg),
                 },
             });
 
