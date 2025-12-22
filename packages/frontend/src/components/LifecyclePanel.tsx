@@ -12,6 +12,9 @@ interface LifecyclePanelProps {
     playerSeat: number | null;
     tableState: TableState | null;
     pendingLeave?: boolean;
+    isAdmin?: boolean;
+    isAdminOnlyStart?: boolean;
+    isPaused?: boolean;
     onRefresh: () => void | Promise<void>;
 }
 
@@ -42,6 +45,9 @@ export function LifecyclePanel({
     playerSeat,
     tableState,
     pendingLeave = false,
+    isAdmin = false,
+    isAdminOnlyStart = false,
+    isPaused = false,
     onRefresh,
 }: LifecyclePanelProps) {
     const { startHand, submitCommit, revealSecret, leaveAfterHand, cancelLeaveAfterHand, sitOut, sitIn } = useContractActions();
@@ -104,7 +110,27 @@ export function LifecyclePanel({
         }
     };
 
-    const startDisabled = gameState.phase !== GAME_PHASES.WAITING || !isActionOnPlayer || activeAction !== null;
+    // Count active (non-sitting-out) seats
+    const activeSeats = useMemo(() => seats.filter(s => s && !s.sittingOut).length, [seats]);
+
+    // Admin can start when admin_only_start is on, otherwise anyone who is action-on player or admin
+    const canStartHand = isAdminOnlyStart ? isAdmin : (isActionOnPlayer || isAdmin);
+
+    const startDisabled =
+        gameState.phase !== GAME_PHASES.WAITING ||
+        isPaused ||
+        activeSeats < 2 ||
+        !canStartHand ||
+        activeAction !== null;
+
+    const startHint = useMemo(() => {
+        if (gameState.phase !== GAME_PHASES.WAITING) return null;
+        if (isPaused) return "Table is paused.";
+        if (activeSeats < 2) return "Need at least 2 active players.";
+        if (isAdminOnlyStart && !isAdmin) return "Only admin can start hands.";
+        if (!isActionOnPlayer && !isAdmin) return "Waiting for the acting player to start.";
+        return null;
+    }, [gameState.phase, isPaused, activeSeats, isAdminOnlyStart, isAdmin, isActionOnPlayer]);
     const commitDisabled =
         gameState.phase !== GAME_PHASES.COMMIT || !isActionOnPlayer || !secret || !secretHash || activeAction !== null;
     const revealDisabled =
@@ -175,7 +201,7 @@ export function LifecyclePanel({
                     >
                         {activeAction === "start" ? <Loader2 className="spin" size={16} /> : <Play size={16} />} Start Hand
                     </button>
-                    {!isActionOnPlayer && <small className="hint">Waiting for the acting player to start.</small>}
+                    {startHint && <small className="hint">{startHint}</small>}
                 </div>
             )}
 

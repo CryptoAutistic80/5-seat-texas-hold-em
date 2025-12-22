@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { Shield, X } from "lucide-react";
 import { useWallet } from "../components/wallet-provider";
 import { useChipsView, useContractActions, useTableView } from "../hooks/useContract";
 import { PokerTable } from "../components/PokerTable";
@@ -35,6 +36,12 @@ export function Table() {
     const [tablePaused, setTablePaused] = useState(false);
     const [adminOnlyStart, setAdminOnlyStart] = useState(false);
     const [pendingLeaves, setPendingLeaves] = useState<boolean[]>([false, false, false, false, false]);
+    const [adminOpen, setAdminOpen] = useState(false);
+
+    const isAdmin = useMemo(() => {
+        if (!connected || !account?.address || !adminAddress) return false;
+        return adminAddress.toLowerCase() === account.address.toString().toLowerCase();
+    }, [connected, account?.address, adminAddress]);
 
     const loadTableData = async (isBackground = false) => {
         if (!address) return;
@@ -128,6 +135,16 @@ export function Table() {
         window.addEventListener("chips:updated", handleChipsUpdate);
         return () => window.removeEventListener("chips:updated", handleChipsUpdate);
     }, [refreshBalance]);
+
+    // ESC key handler for admin modal
+    useEffect(() => {
+        if (!adminOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setAdminOpen(false);
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [adminOpen]);
 
     const handleSeatSelect = (seatIndex: number) => {
         setSelectedSeat(seatIndex);
@@ -228,19 +245,17 @@ export function Table() {
                         <TableInfo config={config} state={tableState} address={address!} />
                     )}
 
-                    {connected && account?.address && config && (
-                        <AdminPanel
-                            tableAddress={address!}
-                            isAdmin={adminAddress.toLowerCase() === account.address.toString().toLowerCase()}
-                            isPaused={tablePaused}
-                            isAdminOnlyStart={adminOnlyStart}
-                            seats={seats}
-                            smallBlind={config.smallBlind}
-                            bigBlind={config.bigBlind}
-                            minBuyIn={config.minBuyIn}
-                            maxBuyIn={config.maxBuyIn}
-                            onRefresh={loadTableData}
-                        />
+                    {isAdmin && config && (
+                        <button
+                            type="button"
+                            className={`admin-trigger${adminOpen ? " active" : ""}`}
+                            onClick={() => setAdminOpen(true)}
+                            aria-expanded={adminOpen}
+                            aria-haspopup="dialog"
+                        >
+                            <Shield size={16} />
+                            Admin
+                        </button>
                     )}
 
                     <section className="join-panel">
@@ -335,6 +350,9 @@ export function Table() {
                                 playerSeat={playerSeat}
                                 tableState={tableState}
                                 pendingLeave={playerSeat !== null ? pendingLeaves[playerSeat] : false}
+                                isAdmin={connected && !!account?.address && adminAddress.toLowerCase() === account.address.toString().toLowerCase()}
+                                isAdminOnlyStart={adminOnlyStart}
+                                isPaused={tablePaused}
                                 onRefresh={loadTableData}
                             />
                         )}
@@ -342,6 +360,39 @@ export function Table() {
                     </section>
                 </main>
             </div>
+
+            {/* Admin Modal */}
+            {adminOpen && config && (
+                <div className="admin-overlay" onClick={() => setAdminOpen(false)}>
+                    <div
+                        className="admin-modal"
+                        role="dialog"
+                        aria-label="Admin controls"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className="admin-close"
+                            onClick={() => setAdminOpen(false)}
+                            aria-label="Close admin controls"
+                        >
+                            <X size={16} />
+                        </button>
+                        <AdminPanel
+                            tableAddress={address!}
+                            isAdmin={isAdmin}
+                            isPaused={tablePaused}
+                            isAdminOnlyStart={adminOnlyStart}
+                            seats={seats}
+                            smallBlind={config.smallBlind}
+                            bigBlind={config.bigBlind}
+                            minBuyIn={config.minBuyIn}
+                            maxBuyIn={config.maxBuyIn}
+                            onRefresh={loadTableData}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

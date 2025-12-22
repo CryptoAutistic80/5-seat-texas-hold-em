@@ -1880,4 +1880,11 @@ module holdemgame::texas_holdem {
         };
         (occupied, MAX_PLAYERS)
     }
+
+    #[view]
+    /// Get the admin address for a table
+    public fun get_admin(table_addr: address): address acquires Table {
+        let table = borrow_global<Table>(table_addr);
+        table.admin
+    }
 }

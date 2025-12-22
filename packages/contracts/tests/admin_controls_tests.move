@@ -232,4 +232,27 @@ module holdemgame::admin_controls_tests {
         let (_, _, sitting_out) = texas_holdem::get_seat_info(admin_addr, 0);
         assert!(sitting_out == true, 1);
     }
+
+    // ============================================
+    // GET ADMIN VIEW
+    // ============================================
+
+    #[test(admin = @holdemgame)]
+    fun test_get_admin_returns_admin_address(admin: &signer) {
+        setup_table(admin);
+        let admin_addr = signer::address_of(admin);
+        
+        assert!(texas_holdem::get_admin(admin_addr) == admin_addr, 1);
+    }
+
+    #[test(admin = @holdemgame, new_admin = @0xBEEF)]
+    fun test_get_admin_after_transfer(admin: &signer, new_admin: &signer) {
+        setup_table(admin);
+        let admin_addr = signer::address_of(admin);
+        let new_admin_addr = signer::address_of(new_admin);
+        
+        texas_holdem::transfer_ownership(admin, admin_addr, new_admin_addr);
+        assert!(texas_holdem::get_admin(admin_addr) == new_admin_addr, 1);
+    }
 }
+
