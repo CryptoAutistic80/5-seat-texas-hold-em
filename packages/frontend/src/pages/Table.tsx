@@ -15,7 +15,7 @@ import "./Table.css";
 export function Table() {
     const { address } = useParams<{ address: string }>();
     const { connected, account } = useWallet();
-    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves } = useTableView();
+    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getHoleCards, getPlayersInHand } = useTableView();
     const { joinTable } = useContractActions();
     const { getBalance } = useChipsView();
 
@@ -37,6 +37,8 @@ export function Table() {
     const [adminOnlyStart, setAdminOnlyStart] = useState(false);
     const [pendingLeaves, setPendingLeaves] = useState<boolean[]>([false, false, false, false, false]);
     const [adminOpen, setAdminOpen] = useState(false);
+    const [holeCards, setHoleCards] = useState<number[][]>([]);
+    const [playersInHand, setPlayersInHand] = useState<number[]>([]);
 
     const isAdmin = useMemo(() => {
         if (!connected || !account?.address || !adminAddress) return false;
@@ -52,7 +54,7 @@ export function Table() {
                 setError(null);
             }
 
-            const [configData, stateData, seatsData, gameData, admin, paused, adminOnly, leaves] = await Promise.all([
+            const [configData, stateData, seatsData, gameData, admin, paused, adminOnly, leaves, holeCardsData, playersData] = await Promise.all([
                 getTableConfig(address),
                 getTableState(address),
                 getAllSeats(address),
@@ -61,6 +63,8 @@ export function Table() {
                 isPaused(address),
                 isAdminOnlyStart(address),
                 getPendingLeaves(address),
+                getHoleCards(address),
+                getPlayersInHand(address),
             ]);
 
             setConfig(configData);
@@ -71,6 +75,11 @@ export function Table() {
             setTablePaused(paused);
             setAdminOnlyStart(adminOnly);
             setPendingLeaves(leaves);
+            setHoleCards(holeCardsData);
+            setPlayersInHand(playersData);
+
+            // Debug: Log hole cards data
+            console.log("DEBUG hole cards:", { holeCardsData, playersData, phase: gameData.phase });
 
             // Default to first available seat if none selected
             const firstEmptySeat = seatsData.findIndex((s) => !s);
@@ -327,6 +336,8 @@ export function Table() {
                                 playerSeat={playerSeat}
                                 onSeatSelect={handleSeatSelect}
                                 selectedSeat={selectedSeat}
+                                holeCards={holeCards}
+                                playersInHand={playersInHand}
                             />
                         </div>
                     </section>

@@ -178,6 +178,29 @@
     }
 }
 
+/* Small cards for hole cards display */
+.card.card-small {
+    width: 36px;
+    height: 50px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.card.card-small .card-rank {
+    font-size: 12px;
+}
+
+.card.card-small .card-suit {
+    font-size: 14px;
+}
+
+/* Hole cards container */
+.hole-cards {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 6px;
+    animation: cardIn 0.3s ease both;
+}
+
 /* Phase indicator */
 .phase-indicator {
     position: absolute;

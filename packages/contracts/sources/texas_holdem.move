@@ -1716,6 +1716,16 @@ module holdemgame::texas_holdem {
     }
 
     #[view]
+    /// Get hole cards for all players in hand (indexed by hand position)
+    /// Returns vector of 2-card vectors for each player in players_in_hand order
+    public fun get_hole_cards(table_addr: address): vector<vector<u8>> acquires Table {
+        let table = borrow_global<Table>(table_addr);
+        if (option::is_none(&table.game)) { vector::empty() }
+        else { option::borrow(&table.game).hole_cards }
+    }
+
+
+    #[view]
     /// Get status of each player in hand (0=waiting, 1=active, 2=folded, 3=all-in)
     public fun get_player_statuses(table_addr: address): vector<u8> acquires Table {
         let table = borrow_global<Table>(table_addr);

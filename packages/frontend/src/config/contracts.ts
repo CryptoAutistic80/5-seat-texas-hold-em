@@ -2,8 +2,8 @@
  * Contract configuration for the Texas Hold'em game
  */
 
-// Deployed contract address on Cedra testnet (holdem_v2 profile)
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "0x88d4e49b9fbcd8abd778f94eba6cefe74f1e63e16b9623a26cf3e4f0fcee665f";
+// Deployed contract address on Cedra testnet (holdem_deployer_v2 profile)
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "0xfab3ac3aafdae5636d13a04605890867e2c30d8be8c8e9618cb7b9096c761fd3";
 
 // Module names
 export const MODULES = {

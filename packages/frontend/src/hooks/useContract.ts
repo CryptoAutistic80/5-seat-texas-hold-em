@@ -309,6 +309,42 @@ export function useTableView() {
         }
     }, []);
 
+    const getHoleCards = useCallback(async (tableAddress: string): Promise<number[][]> => {
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_hole_cards`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const allCards = result[0];
+            if (!Array.isArray(allCards)) return [];
+            return (allCards as string[][]).map((playerCards) =>
+                Array.isArray(playerCards) ? playerCards.map((c) => parseInt(c)) : []
+            );
+        } catch (e) {
+            console.warn("Failed to get hole cards:", e);
+            return [];
+        }
+    }, []);
+
+    const getPlayersInHand = useCallback(async (tableAddress: string): Promise<number[]> => {
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_players_in_hand`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const players = result[0];
+            if (!Array.isArray(players)) return [];
+            return (players as string[]).map((p) => parseInt(p));
+        } catch (e) {
+            console.warn("Failed to get players in hand:", e);
+            return [];
+        }
+    }, []);
+
     return {
         getTableConfig,
         getTableState,
@@ -328,6 +364,8 @@ export function useTableView() {
         getAdmin,
         getPendingLeaves,
         getSeatCount,
+        getHoleCards,
+        getPlayersInHand,
     };
 }
 
