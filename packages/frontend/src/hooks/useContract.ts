@@ -17,6 +17,73 @@ const config = new CedraConfig({
 const cedra = new Cedra(config);
 
 /**
+ * Normalize a Cedra SDK response to a number array.
+ * Handles: Array, Uint8Array, hex strings, { vec: [...] } objects, or nested arrays.
+ */
+function normalizeU8Vector(value: unknown): number[] {
+    // Already a plain array
+    if (Array.isArray(value)) {
+        return value.map((v) => {
+            if (typeof v === "string") return parseInt(v, 10);
+            if (typeof v === "number") return v;
+            return 0;
+        });
+    }
+
+    // Uint8Array (common from Cedra SDK)
+    if (value instanceof Uint8Array) {
+        return Array.from(value);
+    }
+
+    // Object with vec property (Move vector representation)
+    if (value && typeof value === "object" && "vec" in value) {
+        return normalizeU8Vector((value as { vec: unknown }).vec);
+    }
+
+    // Hex string (0x prefix)
+    if (typeof value === "string" && value.startsWith("0x")) {
+        const hex = value.slice(2);
+        const bytes: number[] = [];
+        for (let i = 0; i < hex.length; i += 2) {
+            bytes.push(parseInt(hex.slice(i, i + 2), 16));
+        }
+        return bytes;
+    }
+
+    // Plain hex string (no prefix)
+    if (typeof value === "string" && /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0) {
+        const bytes: number[] = [];
+        for (let i = 0; i < value.length; i += 2) {
+            bytes.push(parseInt(value.slice(i, i + 2), 16));
+        }
+        return bytes;
+    }
+
+    // Debug log for unexpected formats
+    console.warn("normalizeU8Vector: unexpected format", typeof value, value);
+    return [];
+}
+
+/**
+ * Normalize nested vector (vector<vector<u8>>) to number[][].
+ * For hole cards returns array of player card arrays.
+ */
+function normalizeNestedU8Vectors(value: unknown): number[][] {
+    // Already a plain array of arrays
+    if (Array.isArray(value)) {
+        return value.map((inner) => normalizeU8Vector(inner));
+    }
+
+    // Object with vec property
+    if (value && typeof value === "object" && "vec" in value) {
+        return normalizeNestedU8Vectors((value as { vec: unknown }).vec);
+    }
+
+    console.warn("normalizeNestedU8Vectors: unexpected format", typeof value, value);
+    return [];
+}
+
+/**
  * Hook for reading table data from the contract
  */
 export function useTableView() {
@@ -123,10 +190,9 @@ export function useTableView() {
                     functionArguments: [tableAddress],
                 },
             });
-            const cards = result[0];
-            //console.log("Community cards result:", cards);
-            if (!Array.isArray(cards)) return [];
-            return (cards as string[]).map((c) => parseInt(c));
+            // Debug log to trace the raw response
+            console.log("[DEBUG] getCommunityCards raw result:", result[0]);
+            return normalizeU8Vector(result[0]);
         } catch (e) {
             console.warn("Failed to get community cards:", e);
             return [];
@@ -162,9 +228,7 @@ export function useTableView() {
                     functionArguments: [tableAddress],
                 },
             });
-            const bets = result[0];
-            if (!Array.isArray(bets)) return [];
-            return (bets as string[]).map((b) => parseInt(b));
+            return normalizeU8Vector(result[0]);
         } catch (e) {
             console.warn("Failed to get current bets:", e);
             return [];
@@ -179,9 +243,7 @@ export function useTableView() {
                     functionArguments: [tableAddress],
                 },
             });
-            const statuses = result[0];
-            if (!Array.isArray(statuses)) return [];
-            return (statuses as string[]).map((s) => parseInt(s));
+            return normalizeU8Vector(result[0]);
         } catch (e) {
             console.warn("Failed to get player statuses:", e);
             return [];
@@ -287,8 +349,15 @@ export function useTableView() {
                 },
             });
             const leaves = result[0];
-            if (!Array.isArray(leaves)) return [false, false, false, false, false];
-            return leaves as boolean[];
+            // Handle different response formats
+            if (Array.isArray(leaves)) {
+                return leaves.map((v) => Boolean(v));
+            }
+            if (leaves && typeof leaves === "object" && "vec" in leaves) {
+                const vec = (leaves as { vec: unknown[] }).vec;
+                return Array.isArray(vec) ? vec.map((v) => Boolean(v)) : [false, false, false, false, false];
+            }
+            return [false, false, false, false, false];
         } catch {
             return [false, false, false, false, false];
         }
@@ -317,11 +386,9 @@ export function useTableView() {
                     functionArguments: [tableAddress],
                 },
             });
-            const allCards = result[0];
-            if (!Array.isArray(allCards)) return [];
-            return (allCards as string[][]).map((playerCards) =>
-                Array.isArray(playerCards) ? playerCards.map((c) => parseInt(c)) : []
-            );
+            // Debug log to trace the raw response
+            console.log("[DEBUG] getHoleCards raw result:", result[0]);
+            return normalizeNestedU8Vectors(result[0]);
         } catch (e) {
             console.warn("Failed to get hole cards:", e);
             return [];
@@ -336,9 +403,9 @@ export function useTableView() {
                     functionArguments: [tableAddress],
                 },
             });
-            const players = result[0];
-            if (!Array.isArray(players)) return [];
-            return (players as string[]).map((p) => parseInt(p));
+            // Debug log to trace the raw response
+            console.log("[DEBUG] getPlayersInHand raw result:", result[0]);
+            return normalizeU8Vector(result[0]);
         } catch (e) {
             console.warn("Failed to get players in hand:", e);
             return [];

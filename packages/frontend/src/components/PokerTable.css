@@ -61,13 +61,11 @@
     position: absolute;
     inset: 16px;
     border-radius: 50%;
-    background-image: repeating-linear-gradient(
-        45deg,
-        rgba(255, 255, 255, 0.04) 0,
-        rgba(255, 255, 255, 0.04) 6px,
-        transparent 6px,
-        transparent 12px
-    );
+    background-image: repeating-linear-gradient(45deg,
+            rgba(255, 255, 255, 0.04) 0,
+            rgba(255, 255, 255, 0.04) 6px,
+            transparent 6px,
+            transparent 12px);
     opacity: 0.35;
     pointer-events: none;
 }
@@ -106,91 +104,262 @@
     z-index: 1;
 }
 
+/* Card slot placeholder */
 .card-slot {
-    width: 56px;
-    height: 78px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: var(--radius-sm);
-    border: 1px dashed rgba(255, 255, 255, 0.2);
-    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+    width: 60px;
+    height: 84px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-.card {
-    width: 56px;
-    height: 78px;
-    background: linear-gradient(180deg, #ffffff 0%, #f6f3ef 100%);
-    border-radius: var(--radius-sm);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+/* Playing card - base styles */
+.poker-card {
+    position: relative;
+    width: 60px;
+    height: 84px;
+    background: linear-gradient(165deg, #ffffff 0%, #f8f6f3 50%, #f0ede8 100%);
+    border-radius: 6px;
     font-weight: 700;
-    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
-    animation: cardIn 0.4s ease both;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 8px 16px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    animation: pokerCardIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    overflow: hidden;
 }
 
-.community-cards .card:nth-child(1) {
+/* Card inner border effect */
+.poker-card::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    pointer-events: none;
+}
+
+/* Card pattern overlay */
+.poker-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(135deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.01) 2px,
+            rgba(0, 0, 0, 0.01) 4px);
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.community-cards .poker-card:nth-child(1) {
     animation-delay: 0.05s;
 }
 
-.community-cards .card:nth-child(2) {
+.community-cards .poker-card:nth-child(2) {
     animation-delay: 0.1s;
 }
 
-.community-cards .card:nth-child(3) {
+.community-cards .poker-card:nth-child(3) {
     animation-delay: 0.15s;
 }
 
-.community-cards .card:nth-child(4) {
+.community-cards .poker-card:nth-child(4) {
     animation-delay: 0.2s;
 }
 
-.community-cards .card:nth-child(5) {
+.community-cards .poker-card:nth-child(5) {
     animation-delay: 0.25s;
 }
 
-.card.red {
-    color: #d4545f;
+/* Suit colors */
+.poker-card.red {
+    color: #c41e3a;
 }
 
-.card.black {
-    color: #1b1f2b;
+.poker-card.black {
+    color: #1a1a2e;
 }
 
-.card-rank {
-    font-size: 18px;
+/* Card back */
+.poker-card.poker-card-back {
+    background: linear-gradient(165deg, #1e3a5f 0%, #152238 50%, #0d1520 100%);
+}
+
+.poker-card-back-pattern {
+    position: absolute;
+    inset: 4px;
+    border-radius: 3px;
+    background:
+        repeating-linear-gradient(45deg,
+            transparent,
+            transparent 3px,
+            rgba(255, 215, 0, 0.08) 3px,
+            rgba(255, 215, 0, 0.08) 6px),
+        repeating-linear-gradient(-45deg,
+            transparent,
+            transparent 3px,
+            rgba(255, 215, 0, 0.08) 3px,
+            rgba(255, 215, 0, 0.08) 6px);
+    border: 2px solid rgba(255, 215, 0, 0.2);
+}
+
+.poker-card.poker-card-back::before {
+    border-color: rgba(255, 215, 0, 0.15);
+}
+
+.poker-card.poker-card-back::after {
+    display: none;
+}
+
+/* Card corners */
+.poker-card-corner {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    z-index: 2;
+}
+
+.poker-card-corner-tl {
+    top: 4px;
+    left: 5px;
+}
+
+.poker-card-corner-br {
+    bottom: 4px;
+    right: 5px;
+    transform: rotate(180deg);
+}
+
+.poker-card-corner-rank {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.poker-card-corner-suit {
+    font-size: 10px;
+    line-height: 1;
+    margin-top: -1px;
+}
+
+/* Card center area */
+.poker-card-center {
+    position: absolute;
+    inset: 18px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Pip for number cards */
+.poker-card-pip {
+    font-size: 11px;
     line-height: 1;
 }
 
-.card-suit {
-    font-size: 20px;
+/* Ace large suit */
+.poker-card-ace-suit {
+    font-size: 32px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Face card style */
+.poker-card-face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px;
+    background: linear-gradient(180deg,
+            rgba(255, 215, 0, 0.15) 0%,
+            rgba(255, 215, 0, 0.05) 100%);
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.poker-card-face-letter {
+    font-size: 22px;
+    font-weight: 900;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.poker-card-face-suit {
+    font-size: 14px;
     line-height: 1;
 }
 
-@keyframes cardIn {
+@keyframes pokerCardIn {
     from {
         opacity: 0;
-        transform: translateY(10px) scale(0.96);
+        transform: translateY(12px) rotateX(-15deg) scale(0.9);
     }
+
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateY(0) rotateX(0) scale(1);
     }
 }
 
-/* Small cards for hole cards display */
-.card.card-small {
-    width: 36px;
-    height: 50px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+/* Small cards for hole cards */
+.poker-card.poker-card-small {
+    width: 40px;
+    height: 56px;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 6px 12px rgba(0, 0, 0, 0.25);
 }
 
-.card.card-small .card-rank {
-    font-size: 12px;
+.poker-card.poker-card-small .poker-card-corner-tl {
+    top: 2px;
+    left: 3px;
 }
 
-.card.card-small .card-suit {
+.poker-card.poker-card-small .poker-card-corner-br {
+    bottom: 2px;
+    right: 3px;
+}
+
+.poker-card.poker-card-small .poker-card-corner-rank {
+    font-size: 9px;
+}
+
+.poker-card.poker-card-small .poker-card-corner-suit {
+    font-size: 7px;
+}
+
+.poker-card.poker-card-small .poker-card-center {
+    inset: 12px 8px;
+}
+
+.poker-card.poker-card-small .poker-card-pip {
+    font-size: 7px;
+}
+
+.poker-card.poker-card-small .poker-card-ace-suit {
+    font-size: 20px;
+}
+
+.poker-card.poker-card-small .poker-card-face {
+    padding: 2px 4px;
+}
+
+.poker-card.poker-card-small .poker-card-face-letter {
     font-size: 14px;
+}
+
+.poker-card.poker-card-small .poker-card-face-suit {
+    font-size: 10px;
+}
+
+/* Small card back pattern adjustment */
+.poker-card.poker-card-small .poker-card-back-pattern {
+    inset: 3px;
+    border-width: 1px;
 }
 
 /* Hole cards container */
@@ -198,7 +367,7 @@
     display: flex;
     gap: 3px;
     margin-bottom: 6px;
-    animation: cardIn 0.3s ease both;
+    animation: pokerCardIn 0.3s ease both;
 }
 
 /* Phase indicator */
@@ -379,27 +548,72 @@
         padding: var(--spacing-sm);
     }
 
-    .card {
-        width: 46px;
-        height: 64px;
+    .poker-card {
+        width: 48px;
+        height: 68px;
     }
 
     .card-slot {
-        width: 46px;
-        height: 64px;
+        width: 48px;
+        height: 68px;
     }
 
-    .card-rank {
-        font-size: 14px;
+    .poker-card-corner-rank {
+        font-size: 10px;
     }
 
-    .card-suit {
+    .poker-card-corner-suit {
+        font-size: 8px;
+    }
+
+    .poker-card-center {
+        inset: 14px 8px;
+    }
+
+    .poker-card-pip {
+        font-size: 9px;
+    }
+
+    .poker-card-ace-suit {
+        font-size: 24px;
+    }
+
+    .poker-card-face-letter {
+        font-size: 18px;
+    }
+
+    .poker-card-face-suit {
+        font-size: 12px;
+    }
+
+    .poker-card.poker-card-small {
+        width: 32px;
+        height: 45px;
+    }
+
+    .poker-card.poker-card-small .poker-card-corner-rank {
+        font-size: 7px;
+    }
+
+    .poker-card.poker-card-small .poker-card-corner-suit {
+        font-size: 5px;
+    }
+
+    .poker-card.poker-card-small .poker-card-ace-suit {
         font-size: 16px;
+    }
+
+    .poker-card.poker-card-small .poker-card-face-letter {
+        font-size: 12px;
+    }
+
+    .hole-cards {
+        gap: 2px;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .card {
+    .poker-card {
         animation: none;
     }
 }

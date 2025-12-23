@@ -139,15 +139,156 @@ export function PokerTable({
     );
 }
 
-function Card({ value, size = "normal" }: { value: number; size?: "normal" | "small" }) {
+function Card({ value, size = "normal", faceDown = false }: { value: number; size?: "normal" | "small"; faceDown?: boolean }) {
+    // Render card back
+    if (faceDown) {
+        return (
+            <div className={`poker-card poker-card-back ${size === "small" ? "poker-card-small" : ""}`}>
+                <div className="poker-card-back-pattern" />
+            </div>
+        );
+    }
+
     const card = decodeCard(value);
     const isRed = card.suit === "♥" || card.suit === "♦";
+    const suitColor = isRed ? "red" : "black";
+
+    // Get pip count for number cards
+    const getPipCount = (rank: string): number => {
+        const num = parseInt(rank, 10);
+        if (!isNaN(num)) return num;
+        if (rank === "A") return 1;
+        return 0; // Face cards
+    };
+
+    const isFaceCard = ["K", "Q", "J"].includes(card.rank);
+    const isAce = card.rank === "A";
+    const pipCount = getPipCount(card.rank);
+
+    // Render pip pattern for number cards
+    const renderPips = () => {
+        if (isFaceCard || isAce) return null;
+
+        // Pip positions for each count (relative positions 0-100%)
+        const pipLayouts: Record<number, { x: number; y: number }[]> = {
+            2: [
+                { x: 50, y: 20 },
+                { x: 50, y: 80 },
+            ],
+            3: [
+                { x: 50, y: 20 },
+                { x: 50, y: 50 },
+                { x: 50, y: 80 },
+            ],
+            4: [
+                { x: 30, y: 20 },
+                { x: 70, y: 20 },
+                { x: 30, y: 80 },
+                { x: 70, y: 80 },
+            ],
+            5: [
+                { x: 30, y: 20 },
+                { x: 70, y: 20 },
+                { x: 50, y: 50 },
+                { x: 30, y: 80 },
+                { x: 70, y: 80 },
+            ],
+            6: [
+                { x: 30, y: 20 },
+                { x: 70, y: 20 },
+                { x: 30, y: 50 },
+                { x: 70, y: 50 },
+                { x: 30, y: 80 },
+                { x: 70, y: 80 },
+            ],
+            7: [
+                { x: 30, y: 20 },
+                { x: 70, y: 20 },
+                { x: 50, y: 35 },
+                { x: 30, y: 50 },
+                { x: 70, y: 50 },
+                { x: 30, y: 80 },
+                { x: 70, y: 80 },
+            ],
+            8: [
+                { x: 30, y: 20 },
+                { x: 70, y: 20 },
+                { x: 50, y: 35 },
+                { x: 30, y: 50 },
+                { x: 70, y: 50 },
+                { x: 50, y: 65 },
+                { x: 30, y: 80 },
+                { x: 70, y: 80 },
+            ],
+            9: [
+                { x: 30, y: 16 },
+                { x: 70, y: 16 },
+                { x: 30, y: 38 },
+                { x: 70, y: 38 },
+                { x: 50, y: 50 },
+                { x: 30, y: 62 },
+                { x: 70, y: 62 },
+                { x: 30, y: 84 },
+                { x: 70, y: 84 },
+            ],
+            10: [
+                { x: 30, y: 16 },
+                { x: 70, y: 16 },
+                { x: 50, y: 28 },
+                { x: 30, y: 40 },
+                { x: 70, y: 40 },
+                { x: 30, y: 60 },
+                { x: 70, y: 60 },
+                { x: 50, y: 72 },
+                { x: 30, y: 84 },
+                { x: 70, y: 84 },
+            ],
+        };
+
+        const positions = pipLayouts[pipCount] || [];
+        return positions.map((pos, i) => (
+            <span
+                key={i}
+                className="poker-card-pip"
+                style={{
+                    position: "absolute",
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transform: `translate(-50%, -50%)${pos.y > 50 ? " rotate(180deg)" : ""}`,
+                }}
+            >
+                {card.suit}
+            </span>
+        ));
+    };
 
     return (
-        <div className={`card ${isRed ? "red" : "black"} ${size === "small" ? "card-small" : ""}`}>
-            <span className="card-rank">{card.rank}</span>
-            <span className="card-suit">{card.suit}</span>
+        <div className={`poker-card ${suitColor} ${size === "small" ? "poker-card-small" : ""}`}>
+            {/* Top-left corner */}
+            <div className="poker-card-corner poker-card-corner-tl">
+                <span className="poker-card-corner-rank">{card.rank}</span>
+                <span className="poker-card-corner-suit">{card.suit}</span>
+            </div>
+
+            {/* Center content */}
+            <div className="poker-card-center">
+                {isAce && <span className="poker-card-ace-suit">{card.suit}</span>}
+                {isFaceCard && (
+                    <div className="poker-card-face">
+                        <span className="poker-card-face-letter">{card.rank}</span>
+                        <span className="poker-card-face-suit">{card.suit}</span>
+                    </div>
+                )}
+                {!isFaceCard && !isAce && renderPips()}
+            </div>
+
+            {/* Bottom-right corner (inverted) */}
+            <div className="poker-card-corner poker-card-corner-br">
+                <span className="poker-card-corner-rank">{card.rank}</span>
+                <span className="poker-card-corner-suit">{card.suit}</span>
+            </div>
         </div>
     );
 }
+
 
