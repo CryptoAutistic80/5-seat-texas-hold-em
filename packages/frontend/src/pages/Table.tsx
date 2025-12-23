@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Shield, X } from "lucide-react";
 import { useWallet } from "../components/wallet-provider";
@@ -9,6 +9,8 @@ import { ActionPanel } from "../components/ActionPanel";
 import { TableInfo } from "../components/TableInfo";
 import { LifecyclePanel } from "../components/LifecyclePanel";
 import { AdminPanel } from "../components/AdminPanel";
+import { ShowdownModal } from "../components/ShowdownModal";
+import { GAME_PHASES } from "../config/contracts";
 import type { TableConfig, TableState, SeatInfo, GameState } from "../types";
 import "./Table.css";
 
@@ -40,6 +42,18 @@ export function Table() {
     const [holeCards, setHoleCards] = useState<number[][]>([]);
     const [playersInHand, setPlayersInHand] = useState<number[]>([]);
 
+    // Showdown snapshot - captures final state when a hand ends
+    type ShowdownSnapshot = {
+        communityCards: number[];
+        holeCards: number[][];
+        playersInHand: number[];
+        potSize: number;
+        phase: number;
+        seats: ({ player: string; chips: number } | null)[];
+    };
+    const [showdownSnapshot, setShowdownSnapshot] = useState<ShowdownSnapshot | null>(null);
+    const previousPhaseRef = useRef<number | null>(null);
+
     const isAdmin = useMemo(() => {
         if (!connected || !account?.address || !adminAddress) return false;
         return adminAddress.toLowerCase() === account.address.toString().toLowerCase();
@@ -66,6 +80,37 @@ export function Table() {
                 getHoleCards(address),
                 getPlayersInHand(address),
             ]);
+
+            // Detect hand completion: phase transitions from active to WAITING
+            // Active phases are PREFLOP (3) through SHOWDOWN (7)
+            const prevPhase = previousPhaseRef.current;
+            const newPhase = gameData.phase;
+            const wasInActiveHand = prevPhase !== null && prevPhase >= GAME_PHASES.PREFLOP;
+            const handJustEnded = wasInActiveHand && newPhase === GAME_PHASES.WAITING;
+
+            // Capture showdown snapshot if hand just ended and we have card data
+            if (handJustEnded && !showdownSnapshot) {
+                // Use CURRENT state (before update) which still has the cards
+                const snapshotCards = holeCards.length > 0 ? holeCards : holeCardsData;
+                const snapshotPlayers = playersInHand.length > 0 ? playersInHand : playersData;
+                const snapshotCommunity = gameState?.communityCards || [];
+                const snapshotPot = gameState?.potSize || 0;
+
+                // Only show snapshot if there were cards dealt
+                if (snapshotCommunity.length > 0 || snapshotCards.some(c => c.length > 0)) {
+                    setShowdownSnapshot({
+                        communityCards: snapshotCommunity,
+                        holeCards: snapshotCards,
+                        playersInHand: snapshotPlayers,
+                        potSize: snapshotPot,
+                        phase: prevPhase,
+                        seats: seats.map(s => s ? { player: s.player || "", chips: s.chips } : null),
+                    });
+                }
+            }
+
+            // Update the previous phase ref
+            previousPhaseRef.current = newPhase;
 
             setConfig(configData);
             setTableState(stateData);
@@ -403,6 +448,14 @@ export function Table() {
                         />
                     </div>
                 </div>
+            )}
+
+            {/* Showdown Results Modal */}
+            {showdownSnapshot && (
+                <ShowdownModal
+                    snapshot={showdownSnapshot}
+                    onDismiss={() => setShowdownSnapshot(null)}
+                />
             )}
         </div>
     );

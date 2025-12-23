@@ -23,15 +23,26 @@ export function PokerTable({
     holeCards = [],
     playersInHand = [],
 }: PokerTableProps) {
-    // Position seats around an oval table
-    // Seat positions: 0=bottom, 1=bottom-left, 2=top-left, 3=top-right, 4=bottom-right
+    // Position seats around an oval table (visual positions)
+    // Position 0 = bottom center (where the connected player should always be)
+    // Position 1 = bottom-left, 2 = top-left, 3 = top-right, 4 = bottom-right
     const seatPositions = [
-        { left: "50%", bottom: "4%", transform: "translateX(-50%)" },      // 0: bottom center
-        { left: "6%", bottom: "28%", transform: "none" },                   // 1: bottom-left
-        { left: "18%", top: "6%", transform: "none" },                      // 2: top-left
-        { right: "18%", top: "6%", transform: "none" },                     // 3: top-right
-        { right: "6%", bottom: "28%", transform: "none" },                  // 4: bottom-right
+        { left: "50%", bottom: "-8%", transform: "translateX(-50%)" },     // 0: bottom center (player's seat) - below felt
+        { left: "4%", bottom: "22%", transform: "none" },                   // 1: bottom-left
+        { left: "12%", top: "2%", transform: "none" },                      // 2: top-left
+        { right: "12%", top: "2%", transform: "none" },                     // 3: top-right
+        { right: "4%", bottom: "22%", transform: "none" },                  // 4: bottom-right
     ];
+
+    // Calculate rotation offset so player's seat maps to visual position 0 (bottom center)
+    // If playerSeat is null, no rotation (default view)
+    const rotationOffset = playerSeat !== null ? playerSeat : 0;
+
+    // Get actual seat index from visual position (rotated around the table)
+    // This makes the player's seat always appear at the bottom center
+    const getActualSeatIdx = (visualPos: number): number => {
+        return (visualPos + rotationOffset) % 5;
+    };
 
     const isActionOn = (seatIdx: number) =>
         gameState?.actionOn?.seatIndex === seatIdx;
@@ -45,6 +56,10 @@ export function PokerTable({
         if (handIdx === -1 || handIdx >= holeCards.length) return [];
         return holeCards[handIdx] || [];
     };
+
+    // Create array of visual positions [0,1,2,3,4] and render seats in that order
+    // Each visual position maps back to an actual seat index
+    const visualPositions = [0, 1, 2, 3, 4];
 
     return (
         <div className="poker-table-container">
@@ -78,34 +93,46 @@ export function PokerTable({
                     )}
                 </div>
 
-                {/* Seats */}
-                {seats.map((seat, idx) => {
-                    const playerHoleCards = getHoleCardsForSeat(idx);
+                {/* Seats - rendered by visual position, mapped to actual seat indices */}
+                {visualPositions.map((visualPos) => {
+                    const actualIdx = getActualSeatIdx(visualPos);
+                    const seat = seats[actualIdx];
+                    const playerHoleCards = getHoleCardsForSeat(actualIdx);
 
                     return (
                         <div
-                            key={idx}
-                            className={`seat ${seat ? "occupied" : "empty"} ${isActionOn(idx) ? "action-on" : ""} ${idx === playerSeat ? "player-seat" : ""} ${selectedSeat === idx ? "selected" : ""}`}
-                            style={seatPositions[idx]}
-                            onClick={() => !seat && onSeatSelect?.(idx)}
+                            key={actualIdx}
+                            className={`seat ${seat ? "occupied" : "empty"} ${isActionOn(actualIdx) ? "action-on" : ""} ${actualIdx === playerSeat ? "player-seat" : ""} ${selectedSeat === actualIdx ? "selected" : ""}`}
+                            style={seatPositions[visualPos]}
+                            onClick={() => !seat && onSeatSelect?.(actualIdx)}
                             onKeyDown={(event) => {
                                 if (!seat && onSeatSelect && (event.key === "Enter" || event.key === " ")) {
                                     event.preventDefault();
-                                    onSeatSelect(idx);
+                                    onSeatSelect(actualIdx);
                                 }
                             }}
                             role={!seat && onSeatSelect ? "button" : undefined}
                             tabIndex={!seat && onSeatSelect ? 0 : undefined}
                         >
-                            {idx === dealerSeat && <div className="dealer-button">D</div>}
+                            {actualIdx === dealerSeat && <div className="dealer-button">D</div>}
 
                             {seat ? (
                                 <div className="seat-content">
                                     {/* Hole cards display */}
                                     {playerHoleCards.length === 2 && (
                                         <div className="hole-cards">
-                                            <Card value={playerHoleCards[0]} size="small" />
-                                            <Card value={playerHoleCards[1]} size="small" />
+                                            {/* Show face-up cards for own seat or at showdown, otherwise show card backs */}
+                                            {actualIdx === playerSeat || gameState?.phase === GAME_PHASES.SHOWDOWN ? (
+                                                <>
+                                                    <Card value={playerHoleCards[0]} size="small" />
+                                                    <Card value={playerHoleCards[1]} size="small" />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Card value={0} size="small" faceDown />
+                                                    <Card value={0} size="small" faceDown />
+                                                </>
+                                            )}
                                         </div>
                                     )}
 
@@ -127,7 +154,7 @@ export function PokerTable({
                                 </div>
                             ) : (
                                 <div className="empty-seat">
-                                    <span>Seat {idx + 1}</span>
+                                    <span>Seat {actualIdx + 1}</span>
                                     <span className="join-hint">Click to join</span>
                                 </div>
                             )}

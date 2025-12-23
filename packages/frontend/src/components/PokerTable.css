@@ -4,6 +4,8 @@
     justify-content: center;
     align-items: center;
     padding: clamp(12px, 2vw, 28px);
+    padding-bottom: clamp(80px, 12vw, 140px);
+    /* Extra space for player seat below table */
 }
 
 .poker-table {
@@ -11,6 +13,8 @@
     width: min(100%, 1080px);
     aspect-ratio: 16 / 9;
     filter: drop-shadow(0 28px 40px rgba(0, 0, 0, 0.55));
+    overflow: visible;
+    /* Allow seats to render outside the table area */
 }
 
 .poker-table::before {
