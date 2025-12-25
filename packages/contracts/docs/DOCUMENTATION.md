@@ -1,7 +1,7 @@
 # 5-Seat Texas Hold'em - Technical Documentation
 
-**Version:** 3.0.0  
-**Last Updated:** 2025-12-22
+**Version:** 4.0.0  
+**Last Updated:** 2025-12-25
 
 ## Overview
 
@@ -130,7 +130,7 @@ Remainder chip goes to first-to-act winner (left of dealer).
 ### Table Management
 
 ```move
-create_table(admin, sb, bb, min, max, fee_recipient, ante, straddle_enabled)
+create_table(admin, sb, bb, min, max, ante, straddle_enabled)
 join_table(player, table_addr, seat_idx, buy_in)
 leave_table(player, table_addr)
 close_table(admin, table_addr)  // Delete table, refund chips
@@ -175,12 +175,24 @@ update_buy_in_limits(admin, table_addr, min, max)
 kick_player(admin, table_addr, seat_idx)
 force_sit_out(admin, table_addr, seat_idx)
 transfer_ownership(admin, table_addr, new_admin)
-update_fee_recipient(admin, table_addr, new_recipient)
 pause_table(admin, table_addr)
 resume_table(admin, table_addr)
 toggle_admin_only_start(admin, table_addr, enabled)
 emergency_abort(admin, table_addr)  // Refund all bets
 handle_timeout(table_addr)
+```
+
+### Global Fee Configuration
+
+```move
+// Called once after deployment by module deployer
+init_fee_config(deployer, fee_collector)
+
+// Update fee collector address (fee admin only)
+update_fee_collector(admin, new_collector)
+
+// Transfer fee admin rights
+transfer_fee_admin(admin, new_admin)
 ```
 
 ---
@@ -291,8 +303,34 @@ FEE_BASIS_POINTS = 30  // 0.3%
 ```
 
 - Applied to all pot distributions
-- Sent to `fee_recipient` address
-- Tracked in `total_fees_collected`
+- Sent to global `fee_collector` address (not per-table)
+- Tracked in each table's `total_fees_collected`
+
+### Setting Up Fee Collector (Post-Deployment)
+
+After deploying the contract, initialize the fee collector via CLI:
+
+```bash
+# Set fee collector (run once after deployment)
+cedra move run \
+  --function-id <CONTRACT_ADDR>::texas_holdem::init_fee_config \
+  --args address:<FEE_COLLECTOR_ADDRESS> \
+  --profile <DEPLOYER_PROFILE>
+
+# Update fee collector later (fee admin only)
+cedra move run \
+  --function-id <CONTRACT_ADDR>::texas_holdem::update_fee_collector \
+  --args address:<NEW_FEE_COLLECTOR_ADDRESS> \
+  --profile <FEE_ADMIN_PROFILE>
+```
+
+### Fee Collector View Functions
+
+| Function | Returns |
+|----------|---------|
+| `get_fee_collector()` | Current fee collector address |
+| `get_fee_admin()` | Current fee admin address |
+| `is_fee_config_initialized()` | bool |
 
 ---
 
@@ -327,11 +365,15 @@ cedra move publish --profile <profile> --assume-yes
 ## Quick Start
 
 ```bash
-ADDR=0xb45d818331ec975fd8257851594c43ab9e3ebac0c6934993c09f4b6cdf3a574b
+ADDR=0x<CONTRACT_ADDRESS>
 
-# Create table (5/10 blinds, 100-10000 buy-in)
+# Step 1: Initialize fee collector (run once after deployment)
+cedra move run --function-id $ADDR::texas_holdem::init_fee_config \
+  --args address:$ADDR --profile <YOUR_PROFILE>
+
+# Step 2: Create table (5/10 blinds, 100-10000 buy-in)
 cedra move run --function-id $ADDR::texas_holdem::create_table \
-  --args u64:5 u64:10 u64:100 u64:10000 address:$ADDR u64:0 bool:true
+  --args u64:5 u64:10 u64:100 u64:10000 u64:0 bool:true
 
 # Buy chips
 cedra move run --function-id $ADDR::chips::buy_chips \
