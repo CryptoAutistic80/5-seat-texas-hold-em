@@ -48,6 +48,9 @@ module holdemgame::texas_holdem {
     const E_INVALID_BLINDS: u64 = 25;        // big_blind must be > small_blind
     const E_INVALID_BUY_IN: u64 = 26;        // max_buy_in must be >= min_buy_in
     const E_ZERO_VALUE: u64 = 27;            // Values must be non-zero
+    const E_FEE_CONFIG_EXISTS: u64 = 28;     // FeeConfig already initialized
+    const E_FEE_CONFIG_NOT_FOUND: u64 = 29;  // FeeConfig not initialized
+    const E_NOT_FEE_ADMIN: u64 = 30;         // Not authorized to manage fees
     const TIMEOUT_PENALTY_PERCENT: u64 = 10;  // 10% of stack as timeout penalty
 
     // ============================================
@@ -116,6 +119,12 @@ module holdemgame::texas_holdem {
         reveal_deadline: u64,
     }
 
+    /// Global fee configuration - stored at @holdemgame
+    struct FeeConfig has key {
+        fee_collector: address,  // Where all table fees are sent
+        admin: address,          // Who can update fee settings (module deployer)
+    }
+
     struct Table has key {
         config: TableConfig,
         admin: address,
@@ -123,7 +132,6 @@ module holdemgame::texas_holdem {
         game: Option<Game>,
         dealer_button: u64,
         hand_number: u64,
-        fee_recipient: address,
         total_fees_collected: u64,
         // Dead button tracking
         next_bb_seat: u64,           // Seat that owes big blind next
@@ -144,7 +152,6 @@ module holdemgame::texas_holdem {
         big_blind: u64,
         min_buy_in: u64,
         max_buy_in: u64,
-        fee_recipient: address,
         ante: u64,
         straddle_enabled: bool
     ) {
@@ -175,7 +182,6 @@ module holdemgame::texas_holdem {
             game: option::none(),
             dealer_button: 0,
             hand_number: 0,
-            fee_recipient,
             total_fees_collected: 0,
             next_bb_seat: 0,
             missed_blinds,
@@ -330,7 +336,6 @@ module holdemgame::texas_holdem {
             game: _,
             dealer_button: _,
             hand_number: _,
-            fee_recipient: _,
             total_fees_collected: _,
             next_bb_seat: _,
             missed_blinds: _,
@@ -447,15 +452,61 @@ module holdemgame::texas_holdem {
         poker_events::emit_ownership_transferred(table_addr, old_admin, new_admin);
     }
 
-    /// Update fee recipient (admin only)
-    public entry fun update_fee_recipient(admin: &signer, table_addr: address, new_recipient: address) acquires Table {
-        assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
-        let table = borrow_global_mut<Table>(table_addr);
-        assert!(table.admin == signer::address_of(admin), E_NOT_ADMIN);
-        let old_recipient = table.fee_recipient;
-        table.fee_recipient = new_recipient;
+    // ============================================
+    // GLOBAL FEE CONFIGURATION
+    // ============================================
+
+    /// Initialize global fee config - can only be called once by module deployer
+    public entry fun init_fee_config(deployer: &signer, fee_collector: address) {
+        let deployer_addr = signer::address_of(deployer);
+        assert!(deployer_addr == @holdemgame, E_NOT_FEE_ADMIN);
+        assert!(!exists<FeeConfig>(@holdemgame), E_FEE_CONFIG_EXISTS);
         
-        poker_events::emit_fee_recipient_updated(table_addr, old_recipient, new_recipient);
+        move_to(deployer, FeeConfig {
+            fee_collector,
+            admin: deployer_addr,
+        });
+    }
+
+    /// Update the global fee collector address (fee admin only)
+    public entry fun update_fee_collector(admin: &signer, new_collector: address) acquires FeeConfig {
+        let admin_addr = signer::address_of(admin);
+        assert!(exists<FeeConfig>(@holdemgame), E_FEE_CONFIG_NOT_FOUND);
+        let config = borrow_global_mut<FeeConfig>(@holdemgame);
+        assert!(admin_addr == config.admin, E_NOT_FEE_ADMIN);
+        
+        let old_collector = config.fee_collector;
+        config.fee_collector = new_collector;
+        
+        // Emit event using the existing fee recipient updated event
+        poker_events::emit_fee_recipient_updated(@holdemgame, old_collector, new_collector);
+    }
+
+    /// Transfer fee admin rights to a new address
+    public entry fun transfer_fee_admin(admin: &signer, new_admin: address) acquires FeeConfig {
+        let admin_addr = signer::address_of(admin);
+        assert!(exists<FeeConfig>(@holdemgame), E_FEE_CONFIG_NOT_FOUND);
+        let config = borrow_global_mut<FeeConfig>(@holdemgame);
+        assert!(admin_addr == config.admin, E_NOT_FEE_ADMIN);
+        
+        config.admin = new_admin;
+    }
+
+    #[view]
+    public fun get_fee_collector(): address acquires FeeConfig {
+        assert!(exists<FeeConfig>(@holdemgame), E_FEE_CONFIG_NOT_FOUND);
+        borrow_global<FeeConfig>(@holdemgame).fee_collector
+    }
+
+    #[view]
+    public fun get_fee_admin(): address acquires FeeConfig {
+        assert!(exists<FeeConfig>(@holdemgame), E_FEE_CONFIG_NOT_FOUND);
+        borrow_global<FeeConfig>(@holdemgame).admin
+    }
+
+    #[view]
+    public fun is_fee_config_initialized(): bool {
+        exists<FeeConfig>(@holdemgame)
     }
 
     /// Pause the table - no new hands can start (admin only)
@@ -704,7 +755,7 @@ module holdemgame::texas_holdem {
     // PLAYER ACTIONS
     // ============================================
 
-    public entry fun fold(player: &signer, table_addr: address) acquires Table {
+    public entry fun fold(player: &signer, table_addr: address) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -721,7 +772,7 @@ module holdemgame::texas_holdem {
         advance_action_internal(table, table_addr);
     }
 
-    public entry fun check(player: &signer, table_addr: address) acquires Table {
+    public entry fun check(player: &signer, table_addr: address) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -741,7 +792,7 @@ module holdemgame::texas_holdem {
         advance_action_internal(table, table_addr);
     }
 
-    public entry fun call(player: &signer, table_addr: address) acquires Table {
+    public entry fun call(player: &signer, table_addr: address) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -770,7 +821,7 @@ module holdemgame::texas_holdem {
         advance_action_internal(table, table_addr);
     }
 
-    public entry fun raise_to(player: &signer, table_addr: address, total_bet: u64) acquires Table {
+    public entry fun raise_to(player: &signer, table_addr: address, total_bet: u64) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -833,7 +884,7 @@ module holdemgame::texas_holdem {
         advance_action_internal(table, table_addr);
     }
 
-    public entry fun all_in(player: &signer, table_addr: address) acquires Table {
+    public entry fun all_in(player: &signer, table_addr: address) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -939,7 +990,7 @@ module holdemgame::texas_holdem {
     /// Anyone can call this to enforce timeouts. Effects depend on phase:
     /// - COMMIT/REVEAL: Apply 10% penalty, mark as sitting out, abort if <2 players remain
     /// - PREFLOP-RIVER: Auto-fold the timed-out player
-    public entry fun handle_timeout(table_addr: address) acquires Table {
+    public entry fun handle_timeout(table_addr: address) acquires Table, FeeConfig {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
@@ -963,7 +1014,8 @@ module holdemgame::texas_holdem {
                     let penalty = (seat.chip_count * TIMEOUT_PENALTY_PERCENT) / 100;
                     if (penalty > 0) {
                         seat.chip_count = seat.chip_count - penalty;
-                        chips::transfer_chips(table_addr, table.fee_recipient, penalty);
+                        let fee_collector = borrow_global<FeeConfig>(@holdemgame).fee_collector;
+                        chips::transfer_chips(table_addr, fee_collector, penalty);
                         table.total_fees_collected = table.total_fees_collected + penalty;
                     };
                     
@@ -989,7 +1041,8 @@ module holdemgame::texas_holdem {
                     let penalty = (seat.chip_count * TIMEOUT_PENALTY_PERCENT) / 100;
                     if (penalty > 0) {
                         seat.chip_count = seat.chip_count - penalty;
-                        chips::transfer_chips(table_addr, table.fee_recipient, penalty);
+                        let fee_collector = borrow_global<FeeConfig>(@holdemgame).fee_collector;
+                        chips::transfer_chips(table_addr, fee_collector, penalty);
                         table.total_fees_collected = table.total_fees_collected + penalty;
                     };
                     
@@ -1018,7 +1071,7 @@ module holdemgame::texas_holdem {
     // INTERNAL GAME LOGIC
     // ============================================
 
-    fun advance_action_internal(table: &mut Table, table_addr: address) {
+    fun advance_action_internal(table: &mut Table, table_addr: address) acquires FeeConfig {
         let game = option::borrow(&table.game);
         let active_count = count_active_players_internal(game);
         
@@ -1037,7 +1090,7 @@ module holdemgame::texas_holdem {
         };
     }
 
-    fun collect_and_advance_phase(table: &mut Table, table_addr: address) {
+    fun collect_and_advance_phase(table: &mut Table, table_addr: address) acquires FeeConfig {
         {
             let game_mut = option::borrow_mut(&mut table.game);
             let non_folded = get_non_folded_mask_internal(game_mut);
@@ -1046,7 +1099,7 @@ module holdemgame::texas_holdem {
         advance_phase_internal(table, table_addr);
     }
 
-    fun advance_phase_internal(table: &mut Table, table_addr: address) {
+    fun advance_phase_internal(table: &mut Table, table_addr: address) acquires FeeConfig {
         let bb = table.config.big_blind;
         let game_mut = option::borrow_mut(&mut table.game);
         game_mut.last_aggressor = option::none();
@@ -1133,7 +1186,7 @@ module holdemgame::texas_holdem {
         };
     }
 
-    fun run_showdown_internal(table: &mut Table, table_addr: address) {
+    fun run_showdown_internal(table: &mut Table, table_addr: address) acquires FeeConfig {
         let game = option::borrow(&table.game);
         let hand_rankings = vector::empty<pot_manager::HandRanking>();
         let num_players = vector::length(&game.players_in_hand);
@@ -1185,7 +1238,7 @@ module holdemgame::texas_holdem {
         let players_in_hand = game.players_in_hand;
         let community_cards = game.community_cards;
         let total_pot = pot_manager::get_total_pot(&game.pot_state);
-        let fee_recipient = table.fee_recipient;
+        let fee_collector = borrow_global<FeeConfig>(@holdemgame).fee_collector;
         let hand_number = table.hand_number;
         
         // Process distributions and build winner data
@@ -1219,7 +1272,7 @@ module holdemgame::texas_holdem {
         
         // Transfer fees to fee recipient
         if (total_fee > 0) {
-            chips::transfer_chips(table_addr, fee_recipient, total_fee);
+            chips::transfer_chips(table_addr, fee_collector, total_fee);
             table.total_fees_collected = table.total_fees_collected + total_fee;
         };
         
@@ -1247,7 +1300,7 @@ module holdemgame::texas_holdem {
         table.game = option::none();
     }
 
-    fun end_hand_fold_internal(table: &mut Table, table_addr: address) {
+    fun end_hand_fold_internal(table: &mut Table, table_addr: address) acquires FeeConfig {
         {
             let game_mut = option::borrow_mut(&mut table.game);
             let non_folded = get_non_folded_mask_internal(game_mut);
@@ -1282,7 +1335,8 @@ module holdemgame::texas_holdem {
         
         // Transfer fees to fee recipient
         if (fee > 0) {
-            chips::transfer_chips(table_addr, table.fee_recipient, fee);
+            let fee_collector = borrow_global<FeeConfig>(@holdemgame).fee_collector;
+            chips::transfer_chips(table_addr, fee_collector, fee);
             table.total_fees_collected = table.total_fees_collected + fee;
         };
         

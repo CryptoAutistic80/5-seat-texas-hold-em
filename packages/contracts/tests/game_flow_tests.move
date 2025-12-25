@@ -15,7 +15,7 @@ module holdemgame::game_flow_tests {
         
         // Create table with 5/10 blinds, min 50 max 1000 buy-in, fees go to admin
         // ante=0, straddle_enabled=false
-        texas_holdem::create_table(admin, 5, 10, 50, 1000, signer::address_of(admin), 0, false);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
     }
 
     #[test(admin = @holdemgame)]
@@ -35,7 +35,7 @@ module holdemgame::game_flow_tests {
     fun test_create_duplicate_table_fails(admin: &signer) {
         setup_table(admin);
         // Try to create another table at same address
-        texas_holdem::create_table(admin, 10, 20, 100, 2000, signer::address_of(admin), 0, false);
+        texas_holdem::create_table(admin, 10, 20, 100, 2000, 0, false);
     }
 
     #[test(admin = @holdemgame, player = @0xBEEF)]

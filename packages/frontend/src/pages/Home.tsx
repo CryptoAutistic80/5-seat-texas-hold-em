@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../components/wallet-provider";
 import { ChipsPanel } from "../components/ChipsPanel";
@@ -109,7 +109,6 @@ export function Home() {
 }
 
 function CreateTableModal({ onClose }: { onClose: () => void }) {
-    const { account } = useWallet();
     const { createTable } = useContractActions();
     const navigate = useNavigate();
     const [config, setConfig] = useState({
@@ -119,18 +118,13 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
         maxBuyIn: 10000,
         ante: 0,
         straddleEnabled: true,
-        feeRecipient: account?.address?.toString() || "",
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [newTableAddress, setNewTableAddress] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (account?.address && !config.feeRecipient) {
-            setConfig((prev) => ({ ...prev, feeRecipient: prev.feeRecipient || account.address.toString() }));
-        }
-    }, [account?.address, config.feeRecipient]);
+
 
     const validationError = useMemo(() => {
         const errors: string[] = [];
@@ -147,12 +141,9 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
         if (config.minBuyIn > config.maxBuyIn) {
             errors.push("Min buy-in cannot exceed max buy-in.");
         }
-        if (!config.feeRecipient.trim()) {
-            errors.push("Fee recipient address is required.");
-        }
 
         return errors.join(" ");
-    }, [config.bigBlind, config.feeRecipient, config.maxBuyIn, config.minBuyIn, config.smallBlind]);
+    }, [config.bigBlind, config.maxBuyIn, config.minBuyIn, config.smallBlind]);
 
     const extractTableAddress = (txResult: unknown) => {
         const events = (txResult as { events?: { type?: string; data?: Record<string, unknown> }[] }).events || [];
@@ -181,7 +172,6 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
                 config.bigBlind,
                 config.minBuyIn,
                 config.maxBuyIn,
-                config.feeRecipient.trim(),
                 config.ante,
                 config.straddleEnabled
             );
@@ -206,16 +196,7 @@ function CreateTableModal({ onClose }: { onClose: () => void }) {
             <div className="modal" onClick={(e) => e.stopPropagation()}>
                 <h2>Create New Table</h2>
 
-                <div className="form-group">
-                    <label>Fee Recipient Address</label>
-                    <input
-                        type="text"
-                        value={config.feeRecipient}
-                        onChange={(e) => setConfig({ ...config, feeRecipient: e.target.value })}
-                        placeholder="0x..."
-                        disabled={isSubmitting}
-                    />
-                </div>
+
 
                 <div className="form-group">
                     <label>Small Blind</label>

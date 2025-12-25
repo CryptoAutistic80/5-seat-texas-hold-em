@@ -529,8 +529,8 @@ export function useContractActions() {
 
     // Table management
     const createTable = useCallback(
-        (sb: number, bb: number, min: number, max: number, feeRecipient: string, ante: number, straddleEnabled: boolean) =>
-            executeTransaction(`${MODULES.TEXAS_HOLDEM}::create_table`, [sb, bb, min, max, feeRecipient, ante, straddleEnabled]),
+        (sb: number, bb: number, min: number, max: number, ante: number, straddleEnabled: boolean) =>
+            executeTransaction(`${MODULES.TEXAS_HOLDEM}::create_table`, [sb, bb, min, max, ante, straddleEnabled]),
         [executeTransaction]
     );
 

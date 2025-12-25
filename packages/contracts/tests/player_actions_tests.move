@@ -12,7 +12,7 @@ module holdemgame::player_actions_tests {
     // Helper to setup a table with players
     fun setup_table_with_players(admin: &signer, p1: &signer, p2: &signer) {
         chips::init_for_test(admin);
-        texas_holdem::create_table(admin, 5, 10, 50, 1000, signer::address_of(admin), 0, false);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
         
         let admin_addr = signer::address_of(admin);
         let p1_addr = signer::address_of(p1);
@@ -49,7 +49,7 @@ module holdemgame::player_actions_tests {
     #[expected_failure(abort_code = 5, location = holdemgame::texas_holdem)] // E_NOT_AT_TABLE
     fun test_leave_table_not_at_table_fails(admin: &signer, player: &signer) {
         chips::init_for_test(admin);
-        texas_holdem::create_table(admin, 5, 10, 50, 1000, signer::address_of(admin), 0, false);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
         
         // Player not at table tries to leave
         texas_holdem::leave_table(player, signer::address_of(admin));
@@ -176,5 +176,55 @@ module holdemgame::player_actions_tests {
         let (occupied, total) = texas_holdem::get_seat_count(admin_addr);
         assert!(occupied == 2, 1);
         assert!(total == 5, 2);
+    }
+
+    // ============================================
+    // MISSED BLINDS TRACKING
+    // ============================================
+
+    #[test(admin = @holdemgame, player = @0xBEEF)]
+    fun test_sit_out_records_missed_blind(admin: &signer, player: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
+        
+        let player_addr = signer::address_of(player);
+        chips::mint_test_chips(player_addr, 500);
+        texas_holdem::join_table(player, signer::address_of(admin), 0, 200);
+        
+        // Sit out should record missed blind
+        texas_holdem::sit_out(player, signer::address_of(admin));
+        
+        // Check missed blinds recorded (should be big blind = 10)
+        let missed = texas_holdem::get_missed_blinds(signer::address_of(admin));
+        assert!(*std::vector::borrow(&missed, 0) == 10, 1);
+    }
+
+    #[test(admin = @holdemgame, player = @0xBEEF)]
+    fun test_sit_in_collects_missed_blind(admin: &signer, player: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
+        
+        let admin_addr = signer::address_of(admin);
+        let player_addr = signer::address_of(player);
+        chips::mint_test_chips(player_addr, 500);
+        texas_holdem::join_table(player, admin_addr, 0, 200);
+        
+        // Sit out (records missed blind)
+        texas_holdem::sit_out(player, admin_addr);
+        
+        // Check stack before sit_in
+        let (_, chips_before, _) = texas_holdem::get_seat_info(admin_addr, 0);
+        assert!(chips_before == 200, 1);
+        
+        // Sit in (should collect missed blind)
+        texas_holdem::sit_in(player, admin_addr);
+        
+        // Check stack after sit_in (should be reduced by big blind)
+        let (_, chips_after, _) = texas_holdem::get_seat_info(admin_addr, 0);
+        assert!(chips_after == 190, 2); // 200 - 10 (big blind)
+        
+        // Missed blinds should be cleared
+        let missed = texas_holdem::get_missed_blinds(admin_addr);
+        assert!(*std::vector::borrow(&missed, 0) == 0, 3);
     }
 }

@@ -12,7 +12,7 @@ module holdemgame::admin_controls_tests {
     // Helper to setup a table
     fun setup_table(admin: &signer) {
         chips::init_for_test(admin);
-        texas_holdem::create_table(admin, 5, 10, 50, 1000, signer::address_of(admin), 0, false);
+        texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
     }
 
     // ============================================
@@ -124,23 +124,40 @@ module holdemgame::admin_controls_tests {
     }
 
     // ============================================
-    // FEE RECIPIENT
+    // FEE COLLECTOR (GLOBAL)
     // ============================================
 
     #[test(admin = @holdemgame)]
-    fun test_update_fee_recipient_success(admin: &signer) {
-        setup_table(admin);
-        let admin_addr = signer::address_of(admin);
+    fun test_init_fee_config_success(admin: &signer) {
+        chips::init_for_test(admin);
         
-        texas_holdem::update_fee_recipient(admin, admin_addr, @0xFEE);
+        // Initialize fee config
+        texas_holdem::init_fee_config(admin, @0xFEE);
+        
+        // Verify
+        assert!(texas_holdem::is_fee_config_initialized() == true, 1);
+        assert!(texas_holdem::get_fee_collector() == @0xFEE, 2);
+    }
+
+    #[test(admin = @holdemgame)]
+    fun test_update_fee_collector_success(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::init_fee_config(admin, @0xFEE);
+        
+        // Update fee collector
+        texas_holdem::update_fee_collector(admin, @0xFEE2);
+        
+        assert!(texas_holdem::get_fee_collector() == @0xFEE2, 1);
     }
 
     #[test(admin = @holdemgame, other = @0xBEEF)]
-    #[expected_failure(abort_code = 1, location = holdemgame::texas_holdem)] // E_NOT_ADMIN
-    fun test_update_fee_recipient_non_admin_fails(admin: &signer, other: &signer) {
-        setup_table(admin);
+    #[expected_failure(abort_code = 30, location = holdemgame::texas_holdem)] // E_NOT_FEE_ADMIN
+    fun test_update_fee_collector_non_admin_fails(admin: &signer, other: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::init_fee_config(admin, @0xFEE);
         
-        texas_holdem::update_fee_recipient(other, signer::address_of(admin), @0xFEE);
+        // Non-admin tries to update fee collector
+        texas_holdem::update_fee_collector(other, @0xFEE2);
     }
 
     // ============================================
@@ -253,6 +270,73 @@ module holdemgame::admin_controls_tests {
         
         texas_holdem::transfer_ownership(admin, admin_addr, new_admin_addr);
         assert!(texas_holdem::get_admin(admin_addr) == new_admin_addr, 1);
+    }
+
+    // ============================================
+    // CONFIG VALIDATION
+    // ============================================
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 27, location = holdemgame::texas_holdem)] // E_ZERO_VALUE
+    fun test_create_table_zero_small_blind_fails(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 0, 10, 50, 1000, 0, false);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 25, location = holdemgame::texas_holdem)] // E_INVALID_BLINDS
+    fun test_create_table_equal_blinds_fails(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 10, 10, 50, 1000, 0, false);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 25, location = holdemgame::texas_holdem)] // E_INVALID_BLINDS
+    fun test_create_table_small_blind_greater_than_big_fails(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 20, 10, 50, 1000, 0, false);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 27, location = holdemgame::texas_holdem)] // E_ZERO_VALUE
+    fun test_create_table_zero_min_buyin_fails(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 5, 10, 0, 1000, 0, false);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 26, location = holdemgame::texas_holdem)] // E_INVALID_BUY_IN
+    fun test_create_table_max_less_than_min_buyin_fails(admin: &signer) {
+        chips::init_for_test(admin);
+        texas_holdem::create_table(admin, 5, 10, 1000, 500, 0, false);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 25, location = holdemgame::texas_holdem)] // E_INVALID_BLINDS
+    fun test_update_blinds_invalid_fails(admin: &signer) {
+        setup_table(admin);
+        texas_holdem::update_blinds(admin, signer::address_of(admin), 20, 10);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 27, location = holdemgame::texas_holdem)] // E_ZERO_VALUE
+    fun test_update_blinds_zero_fails(admin: &signer) {
+        setup_table(admin);
+        texas_holdem::update_blinds(admin, signer::address_of(admin), 0, 10);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 26, location = holdemgame::texas_holdem)] // E_INVALID_BUY_IN
+    fun test_update_buyin_invalid_fails(admin: &signer) {
+        setup_table(admin);
+        texas_holdem::update_buy_in_limits(admin, signer::address_of(admin), 1000, 500);
+    }
+
+    #[test(admin = @holdemgame)]
+    #[expected_failure(abort_code = 27, location = holdemgame::texas_holdem)] // E_ZERO_VALUE
+    fun test_update_buyin_zero_fails(admin: &signer) {
+        setup_table(admin);
+        texas_holdem::update_buy_in_limits(admin, signer::address_of(admin), 0, 500);
     }
 }
 
