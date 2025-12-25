@@ -62,13 +62,19 @@
     letter-spacing: 1px;
 }
 
-.showdown-phase {
+.showdown-phase,
+.showdown-hand-num {
     display: block;
     margin-top: var(--spacing-xs);
     font-size: 0.85rem;
     color: var(--color-text-dim);
     text-transform: uppercase;
     letter-spacing: 2px;
+}
+
+.showdown-hand-num {
+    font-family: var(--font-mono);
+    color: var(--color-text);
 }
 
 /* Content */
@@ -102,6 +108,69 @@
     font-size: 2rem;
     font-weight: 800;
     color: var(--color-accent);
+    font-family: var(--font-mono);
+}
+
+/* Winners Section */
+.showdown-winners {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.showdown-winners h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--color-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.winner-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.winner-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: linear-gradient(135deg, rgba(247, 181, 0, 0.15) 0%, rgba(247, 181, 0, 0.05) 100%);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(247, 181, 0, 0.3);
+}
+
+.winner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.winner-seat {
+    font-size: 0.75rem;
+    color: var(--color-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.winner-addr {
+    font-size: 0.9rem;
+    font-family: var(--font-mono);
+    color: var(--color-text);
+}
+
+.winner-hand-type {
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.winner-amount {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--color-success);
     font-family: var(--font-mono);
 }
 
@@ -242,6 +311,29 @@
     font-size: 0.9rem;
     font-family: var(--font-mono);
     color: var(--color-text);
+}
+
+.player-label .hand-type {
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* Winner highlight */
+.showdown-player.winner {
+    background: linear-gradient(135deg, rgba(247, 181, 0, 0.12) 0%, rgba(247, 181, 0, 0.04) 100%);
+    border: 1px solid rgba(247, 181, 0, 0.25);
+}
+
+.player-win-badge {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-success);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(16, 185, 129, 0.15);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
 }
 
 .showdown-cards.hole .showdown-card {

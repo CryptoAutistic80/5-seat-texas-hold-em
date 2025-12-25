@@ -1138,9 +1138,17 @@ module holdemgame::texas_holdem {
         let hand_rankings = vector::empty<pot_manager::HandRanking>();
         let num_players = vector::length(&game.players_in_hand);
         
+        // Build hand rankings and collect showdown data
+        let showdown_seats = vector::empty<u64>();
+        let showdown_players = vector::empty<address>();
+        let showdown_hole_cards = vector::empty<vector<u8>>();
+        let showdown_hand_types = vector::empty<u8>();
+        
         let i = 0u64;
         while (i < num_players) {
             let status = *vector::borrow(&game.player_status, i);
+            let seat_idx = *vector::borrow(&game.players_in_hand, i);
+            
             if (status == STATUS_ACTIVE || status == STATUS_ALL_IN) {
                 let cards = vector::empty<u8>();
                 let hole = vector::borrow(&game.hole_cards, i);
@@ -1149,6 +1157,13 @@ module holdemgame::texas_holdem {
                 
                 let (hand_type, tiebreaker) = hand_eval::evaluate_hand(cards);
                 vector::push_back(&mut hand_rankings, pot_manager::new_hand_ranking(hand_type, tiebreaker));
+                
+                // Collect showdown data for non-folded players
+                vector::push_back(&mut showdown_seats, seat_idx);
+                let seat = option::borrow(vector::borrow(&table.seats, seat_idx));
+                vector::push_back(&mut showdown_players, seat.player);
+                vector::push_back(&mut showdown_hole_cards, *hole);
+                vector::push_back(&mut showdown_hand_types, hand_type);
             } else {
                 vector::push_back(&mut hand_rankings, pot_manager::new_hand_ranking(0, 0));
             };
@@ -1168,7 +1183,15 @@ module holdemgame::texas_holdem {
         
         let game = option::borrow(&table.game);
         let players_in_hand = game.players_in_hand;
+        let community_cards = game.community_cards;
+        let total_pot = pot_manager::get_total_pot(&game.pot_state);
         let fee_recipient = table.fee_recipient;
+        let hand_number = table.hand_number;
+        
+        // Process distributions and build winner data
+        let winner_seats = vector::empty<u64>();
+        let winner_players = vector::empty<address>();
+        let winner_amounts = vector::empty<u64>();
         
         let d = 0u64;
         let total_fee = 0u64;
@@ -1185,6 +1208,12 @@ module holdemgame::texas_holdem {
             let seat_idx = *vector::borrow(&players_in_hand, hand_idx);
             let seat = option::borrow_mut(vector::borrow_mut(&mut table.seats, seat_idx));
             seat.chip_count = seat.chip_count + net_amount;
+            
+            // Record winner data
+            vector::push_back(&mut winner_seats, seat_idx);
+            vector::push_back(&mut winner_players, seat.player);
+            vector::push_back(&mut winner_amounts, net_amount);
+            
             d = d + 1;
         };
         
@@ -1193,6 +1222,24 @@ module holdemgame::texas_holdem {
             chips::transfer_chips(table_addr, fee_recipient, total_fee);
             table.total_fees_collected = table.total_fees_collected + total_fee;
         };
+        
+        // Emit comprehensive hand result event
+        poker_events::emit_hand_result(
+            table_addr,
+            hand_number,
+            timestamp::now_seconds(),
+            community_cards,
+            showdown_seats,
+            showdown_players,
+            showdown_hole_cards,
+            showdown_hand_types,
+            winner_seats,
+            winner_players,
+            winner_amounts,
+            total_pot,
+            total_fee,
+            0, // result_type: showdown
+        );
         
         // Process pending leaves before clearing the game
         process_pending_leaves(table, table_addr);
@@ -1221,7 +1268,9 @@ module holdemgame::texas_holdem {
         
         let game = option::borrow(&table.game);
         let total = pot_manager::get_total_pot(&game.pot_state);
+        let community_cards = game.community_cards;
         let seat_idx = *vector::borrow(&game.players_in_hand, winner_hand_idx);
+        let hand_number = table.hand_number;
         
         // Calculate 0.3% service fee
         let fee = (total * FEE_BASIS_POINTS) / 10000;
@@ -1229,12 +1278,32 @@ module holdemgame::texas_holdem {
         
         let seat = option::borrow_mut(vector::borrow_mut(&mut table.seats, seat_idx));
         seat.chip_count = seat.chip_count + net_amount;
+        let winner_player = seat.player;
         
         // Transfer fees to fee recipient
         if (fee > 0) {
             chips::transfer_chips(table_addr, table.fee_recipient, fee);
             table.total_fees_collected = table.total_fees_collected + fee;
         };
+        
+        // Emit hand result event for fold win
+        // For fold wins, showdown arrays are empty (cards not revealed)
+        poker_events::emit_hand_result(
+            table_addr,
+            hand_number,
+            timestamp::now_seconds(),
+            community_cards,
+            vector::empty<u64>(),           // showdown_seats (empty - no showdown)
+            vector::empty<address>(),       // showdown_players
+            vector::empty<vector<u8>>(),    // showdown_hole_cards
+            vector::empty<u8>(),            // showdown_hand_types
+            vector::singleton(seat_idx),    // winner_seats
+            vector::singleton(winner_player), // winner_players
+            vector::singleton(net_amount),  // winner_amounts
+            total,
+            fee,
+            1, // result_type: fold_win
+        );
         
         // Process pending leaves before clearing the game
         process_pending_leaves(table, table_addr);

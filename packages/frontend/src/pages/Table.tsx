@@ -9,7 +9,7 @@ import { ActionPanel } from "../components/ActionPanel";
 import { TableInfo } from "../components/TableInfo";
 import { LifecyclePanel } from "../components/LifecyclePanel";
 import { AdminPanel } from "../components/AdminPanel";
-import { ShowdownModal } from "../components/ShowdownModal";
+import { ShowdownModal, type HandResultData } from "../components/ShowdownModal";
 import { GAME_PHASES } from "../config/contracts";
 import type { TableConfig, TableState, SeatInfo, GameState } from "../types";
 import "./Table.css";
@@ -42,17 +42,10 @@ export function Table() {
     const [holeCards, setHoleCards] = useState<number[][]>([]);
     const [playersInHand, setPlayersInHand] = useState<number[]>([]);
 
-    // Showdown snapshot - captures final state when a hand ends
-    type ShowdownSnapshot = {
-        communityCards: number[];
-        holeCards: number[][];
-        playersInHand: number[];
-        potSize: number;
-        phase: number;
-        seats: ({ player: string; chips: number } | null)[];
-    };
-    const [showdownSnapshot, setShowdownSnapshot] = useState<ShowdownSnapshot | null>(null);
+    // Hand result data - captured when a hand ends, used for showdown modal
+    const [handResult, setHandResult] = useState<HandResultData | null>(null);
     const previousPhaseRef = useRef<number | null>(null);
+    const handNumberRef = useRef<number>(0);
 
     const isAdmin = useMemo(() => {
         if (!connected || !account?.address || !adminAddress) return false;
@@ -88,23 +81,64 @@ export function Table() {
             const wasInActiveHand = prevPhase !== null && prevPhase >= GAME_PHASES.PREFLOP;
             const handJustEnded = wasInActiveHand && newPhase === GAME_PHASES.WAITING;
 
-            // Capture showdown snapshot if hand just ended and we have card data
-            if (handJustEnded && !showdownSnapshot) {
+            // Track hand number for display
+            if (gameData.phase >= GAME_PHASES.PREFLOP && stateData.handNumber > handNumberRef.current) {
+                handNumberRef.current = stateData.handNumber;
+            }
+
+            // Capture hand result if hand just ended and we have card data
+            if (handJustEnded && !handResult) {
                 // Use CURRENT state (before update) which still has the cards
                 const snapshotCards = holeCards.length > 0 ? holeCards : holeCardsData;
                 const snapshotPlayers = playersInHand.length > 0 ? playersInHand : playersData;
                 const snapshotCommunity = gameState?.communityCards || [];
                 const snapshotPot = gameState?.potSize || 0;
 
-                // Only show snapshot if there were cards dealt
+                // Only show result if there were cards dealt
                 if (snapshotCommunity.length > 0 || snapshotCards.some(c => c.length > 0)) {
-                    setShowdownSnapshot({
+                    // Determine if this was a fold win (prevPhase < SHOWDOWN and only one player)
+                    const isFoldWin = prevPhase !== null && prevPhase < GAME_PHASES.SHOWDOWN;
+
+                    // Build showdown data (for now, we show all players' cards)
+                    // In a full implementation, we'd only show non-folded players
+                    const showdownSeats: number[] = [];
+                    const showdownPlayers: string[] = [];
+                    const showdownHoleCards: number[][] = [];
+                    const showdownHandTypes: number[] = [];
+
+                    snapshotPlayers.forEach((seatIdx, handIdx) => {
+                        const playerCards = snapshotCards[handIdx] || [];
+                        if (playerCards.length === 2) {
+                            showdownSeats.push(seatIdx);
+                            const seat = seats[seatIdx];
+                            showdownPlayers.push(seat?.player || "");
+                            showdownHoleCards.push(playerCards);
+                            // We don't have hand type info from frontend snapshot
+                            // (full implementation would get this from contract event)
+                            showdownHandTypes.push(0);
+                        }
+                    });
+
+                    // Determine winner (simplified: we can't know from frontend who won)
+                    // For now, we'll just display all hands and rely on the contract event for accurate data
+                    // The frontend can later be enhanced to fetch the actual HandResult event
+                    setHandResult({
+                        tableAddr: address || "",
+                        handNumber: handNumberRef.current,
+                        timestamp: Math.floor(Date.now() / 1000),
                         communityCards: snapshotCommunity,
-                        holeCards: snapshotCards,
-                        playersInHand: snapshotPlayers,
-                        potSize: snapshotPot,
-                        phase: prevPhase,
-                        seats: seats.map(s => s ? { player: s.player || "", chips: s.chips } : null),
+                        showdownSeats,
+                        showdownPlayers,
+                        showdownHoleCards,
+                        showdownHandTypes,
+                        // Winner data - we don't have this from the frontend snapshot
+                        // In a full implementation, fetch from the HandResult event
+                        winnerSeats: showdownSeats.length > 0 ? [showdownSeats[0]] : [],
+                        winnerPlayers: showdownPlayers.length > 0 ? [showdownPlayers[0]] : [],
+                        winnerAmounts: [snapshotPot],
+                        totalPot: snapshotPot,
+                        totalFees: 0,
+                        resultType: isFoldWin ? 1 : 0,
                     });
                 }
             }
@@ -451,10 +485,10 @@ export function Table() {
             )}
 
             {/* Showdown Results Modal */}
-            {showdownSnapshot && (
+            {handResult && (
                 <ShowdownModal
-                    snapshot={showdownSnapshot}
-                    onDismiss={() => setShowdownSnapshot(null)}
+                    handResult={handResult}
+                    onDismiss={() => setHandResult(null)}
                 />
             )}
         </div>

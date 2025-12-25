@@ -248,6 +248,37 @@ module holdemgame::poker_events {
         amount: u64,
     }
 
+    // Comprehensive hand result for history/stats
+    // Emitted at the end of every hand (showdown or fold win)
+    #[event]
+    struct HandResult has drop, store {
+        table_addr: address,
+        hand_number: u64,
+        timestamp: u64,
+        
+        // Final board
+        community_cards: vector<u8>,
+        
+        // Players who reached showdown (didn't fold)
+        // Parallel arrays - same index = same player
+        showdown_seats: vector<u64>,
+        showdown_players: vector<address>,
+        showdown_hole_cards: vector<vector<u8>>,   // 2 cards per player
+        showdown_hand_types: vector<u8>,           // Hand ranking (1=high card, ..., 10=royal flush)
+        
+        // Winners (may be multiple for split pots)
+        winner_seats: vector<u64>,
+        winner_players: vector<address>,
+        winner_amounts: vector<u64>,
+        
+        // Pot summary
+        total_pot: u64,
+        total_fees: u64,
+        
+        // Outcome: 0=showdown, 1=fold_win
+        result_type: u8,
+    }
+
     // ============================================
     // TIMEOUT EVENTS
     // ============================================
@@ -512,6 +543,40 @@ module holdemgame::poker_events {
         amount: u64,
     ) {
         event::emit(FoldWin { table_addr, hand_number, winner_seat, winner, amount });
+    }
+
+    public(friend) fun emit_hand_result(
+        table_addr: address,
+        hand_number: u64,
+        timestamp: u64,
+        community_cards: vector<u8>,
+        showdown_seats: vector<u64>,
+        showdown_players: vector<address>,
+        showdown_hole_cards: vector<vector<u8>>,
+        showdown_hand_types: vector<u8>,
+        winner_seats: vector<u64>,
+        winner_players: vector<address>,
+        winner_amounts: vector<u64>,
+        total_pot: u64,
+        total_fees: u64,
+        result_type: u8,
+    ) {
+        event::emit(HandResult {
+            table_addr,
+            hand_number,
+            timestamp,
+            community_cards,
+            showdown_seats,
+            showdown_players,
+            showdown_hole_cards,
+            showdown_hand_types,
+            winner_seats,
+            winner_players,
+            winner_amounts,
+            total_pot,
+            total_fees,
+            result_type,
+        });
     }
 
     public(friend) fun emit_timeout_triggered(
