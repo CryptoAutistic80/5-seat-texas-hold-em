@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { sha3_256 } from "@noble/hashes/sha3";
-import { Clock3, Eye, KeyRound, Loader2, Play, Shield, LogOut, Power, PowerOff } from "lucide-react";
+import { Clock3, Loader2, Play, Shield, LogOut, Power, PowerOff, Sparkles, Check, Users } from "lucide-react";
 import { GAME_PHASES, PHASE_NAMES } from "../config/contracts";
-import { useContractActions } from "../hooks/useContract";
+import { useContractActions, useTableView } from "../hooks/useContract";
 import type { GameState, SeatInfo, TableState } from "../types";
 import "./LifecyclePanel.css";
 
@@ -22,17 +22,15 @@ interface LifecyclePanelProps {
 function formatDeadline(deadline?: number | null) {
     if (!deadline || deadline <= 0) return null;
     try {
-        const date = new Date(deadline * 1000);
-        return `${date.toLocaleString()} (${date.toLocaleTimeString()})`;
+        const now = Math.floor(Date.now() / 1000);
+        const remaining = deadline - now;
+        if (remaining <= 0) return "Expired";
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
     } catch {
         return null;
     }
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-    return Array.from(bytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
 }
 
 // Returns the SHA3-256 hash as bytes for contract submission
@@ -43,21 +41,13 @@ function hashSecretToBytes(secret: string): Uint8Array | null {
     return sha3_256(data);
 }
 
-// Returns the SHA3-256 hash as hex string for display
-async function hashSecretToHex(secret: string): Promise<string | null> {
-    if (!secret) return null;
-    const hashBytes = hashSecretToBytes(secret);
-    if (!hashBytes) return null;
-    return bytesToHex(hashBytes);
-}
-
-function getSecretStorageKey(tableAddress: string, playerAddress: string | null | undefined): string | null {
+function getSecretStorageKey(tableAddress: string, playerAddress: string | null | undefined, handNumber: number): string | null {
     if (!tableAddress || !playerAddress) return null;
-    return `holdem_secret_${tableAddress}_${playerAddress}`.toLowerCase();
+    return `holdem_secret_${tableAddress}_${playerAddress}_${handNumber}`.toLowerCase();
 }
 
-function loadStoredSecret(tableAddress: string, playerAddress: string | null | undefined): string {
-    const key = getSecretStorageKey(tableAddress, playerAddress);
+function loadStoredSecret(tableAddress: string, playerAddress: string | null | undefined, handNumber: number): string {
+    const key = getSecretStorageKey(tableAddress, playerAddress, handNumber);
     if (!key || typeof window === "undefined") return "";
     try {
         return localStorage.getItem(key) || "";
@@ -66,8 +56,8 @@ function loadStoredSecret(tableAddress: string, playerAddress: string | null | u
     }
 }
 
-function saveSecret(tableAddress: string, playerAddress: string | null | undefined, secret: string): void {
-    const key = getSecretStorageKey(tableAddress, playerAddress);
+function saveSecret(tableAddress: string, playerAddress: string | null | undefined, handNumber: number, secret: string): void {
+    const key = getSecretStorageKey(tableAddress, playerAddress, handNumber);
     if (!key || typeof window === "undefined") return;
     try {
         if (secret) {
@@ -78,6 +68,16 @@ function saveSecret(tableAddress: string, playerAddress: string | null | undefin
     } catch {
         // localStorage may be unavailable
     }
+}
+
+// Generate a cryptographically secure random secret
+function generateSecret(): string {
+    const randomBytes = window.crypto?.getRandomValues(new Uint8Array(32));
+    return randomBytes
+        ? Array.from(randomBytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("")
+        : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
 
 export function LifecyclePanel({
@@ -93,29 +93,87 @@ export function LifecyclePanel({
     onRefresh,
 }: LifecyclePanelProps) {
     const { startHand, submitCommit, revealSecret, leaveTable, leaveAfterHand, cancelLeaveAfterHand, sitOut, sitIn } = useContractActions();
+    const { getCommitStatus, getRevealStatus, getPlayersInHand } = useTableView();
 
     const playerAddress = playerSeat !== null ? seats[playerSeat]?.player : null;
+    const handNumber = tableState?.handNumber ?? 0;
 
-    // Load secret from localStorage on mount, keyed by table + player
-    const [secret, setSecretInternal] = useState(() => loadStoredSecret(tableAddress, playerAddress));
-    const [secretHash, setSecretHash] = useState<string | null>(null);
+    // State
     const [status, setStatus] = useState<string | null>(null);
     const [activeAction, setActiveAction] = useState<"start" | "commit" | "reveal" | "leave" | "sitout" | null>(null);
+    const [commitStatus, setCommitStatus] = useState<boolean[]>([]);
+    const [revealStatus, setRevealStatus] = useState<boolean[]>([]);
+    const [playersInHand, setPlayersInHand] = useState<number[]>([]);
 
-    // Wrapper to persist secret to localStorage
-    const setSecret = (newSecret: string) => {
-        setSecretInternal(newSecret);
-        saveSecret(tableAddress, playerAddress, newSecret);
-    };
+    // Track whether we've already triggered auto-reveal for this hand
+    const autoRevealTriggeredRef = useRef<number>(0);
 
-    // Re-load secret if player address changes (e.g. wallet switch)
+    // Load stored secret for this hand
+    const storedSecret = useMemo(() =>
+        loadStoredSecret(tableAddress, playerAddress, handNumber),
+        [tableAddress, playerAddress, handNumber]
+    );
+
+    // Find player's position in the hand (hand_idx)
+    const playerHandIdx = useMemo(() => {
+        if (playerSeat === null) return -1;
+        return playersInHand.indexOf(playerSeat);
+    }, [playerSeat, playersInHand]);
+
+    // Check if player has already committed/revealed
+    const hasCommitted = playerHandIdx >= 0 && commitStatus[playerHandIdx] === true;
+    const hasRevealed = playerHandIdx >= 0 && revealStatus[playerHandIdx] === true;
+
+    // Fetch commit/reveal status periodically during those phases
     useEffect(() => {
-        const stored = loadStoredSecret(tableAddress, playerAddress);
-        if (stored !== secret) {
-            setSecretInternal(stored);
+        if (gameState.phase !== GAME_PHASES.COMMIT && gameState.phase !== GAME_PHASES.REVEAL) {
+            return;
+        }
+
+        const fetchStatus = async () => {
+            try {
+                const [commits, reveals, players] = await Promise.all([
+                    getCommitStatus(tableAddress),
+                    getRevealStatus(tableAddress),
+                    getPlayersInHand(tableAddress),
+                ]);
+                setCommitStatus(commits);
+                setRevealStatus(reveals);
+                setPlayersInHand(players);
+            } catch (err) {
+                console.warn("Failed to fetch commit/reveal status:", err);
+            }
+        };
+
+        fetchStatus();
+        const interval = setInterval(fetchStatus, 3000);
+        return () => clearInterval(interval);
+    }, [gameState.phase, tableAddress, getCommitStatus, getRevealStatus, getPlayersInHand]);
+
+    // Auto-reveal when phase changes to REVEAL and we have a stored secret
+    useEffect(() => {
+        if (
+            gameState.phase === GAME_PHASES.REVEAL &&
+            storedSecret &&
+            playerHandIdx >= 0 &&
+            !hasRevealed &&
+            activeAction === null &&
+            autoRevealTriggeredRef.current !== handNumber
+        ) {
+            // Mark that we're triggering auto-reveal for this hand
+            autoRevealTriggeredRef.current = handNumber;
+
+            // Small delay to let UI update, then auto-trigger reveal
+            const timeout = setTimeout(() => {
+                setStatus("🎴 Accepting your cards...");
+                const secretBytes = new TextEncoder().encode(storedSecret);
+                runLifecycleAction(() => revealSecret(tableAddress, secretBytes), "reveal");
+            }, 500);
+
+            return () => clearTimeout(timeout);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tableAddress, playerAddress]);
+    }, [gameState.phase, storedSecret, playerHandIdx, hasRevealed, handNumber]);
 
     const isActionOnPlayer = useMemo(() => {
         if (playerSeat === null || !playerAddress || !gameState.actionOn) return false;
@@ -127,48 +185,34 @@ export function LifecyclePanel({
 
     const deadlineText = useMemo(() => formatDeadline(gameState.actionOn?.deadline), [gameState.actionOn?.deadline]);
 
-    useEffect(() => {
-        let isMounted = true;
-        if (!secret) {
-            setSecretHash(null);
-            return undefined;
-        }
-
-        hashSecretToHex(secret).then((value: string | null) => {
-            if (isMounted) setSecretHash(value);
-        });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [secret]);
-
-    const handleGenerateSecret = () => {
-        const randomBytes = window.crypto?.getRandomValues(new Uint8Array(16));
-        const generated = randomBytes
-            ? Array.from(randomBytes)
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join("")
-            : Math.random().toString(36).slice(2);
-        setSecret(generated);
-        setStatus("Generated a new secret. Keep it safe for reveal phase.");
-    };
-
-    const runLifecycleAction = async (action: () => Promise<unknown>, actionName: "start" | "commit" | "reveal" | "leave" | "sitout") => {
+    const runLifecycleAction = useCallback(async (action: () => Promise<unknown>, actionName: "start" | "commit" | "reveal" | "leave" | "sitout") => {
         try {
             setActiveAction(actionName);
             setStatus(null);
             await action();
-            setStatus("Action submitted. Refreshing table...");
+            setStatus("✓ Success! Refreshing...");
             await onRefresh();
         } catch (err) {
             console.error(`Lifecycle action "${actionName}" failed:`, err);
             const message = err instanceof Error ? err.message : "Action failed.";
-            setStatus(message);
+            setStatus(`⚠️ ${message}`);
         } finally {
             setActiveAction(null);
         }
-    };
+    }, [onRefresh]);
+
+    // Handle "Request Cards" - generates secret and submits commit in one click
+    const handleRequestCards = useCallback(async () => {
+        // Generate a fresh secret for this hand
+        const newSecret = generateSecret();
+        saveSecret(tableAddress, playerAddress, handNumber, newSecret);
+
+        const hashBytes = hashSecretToBytes(newSecret);
+        if (!hashBytes) throw new Error("Failed to generate secret hash");
+
+        console.log("REQUEST CARDS:", { handNumber, secretLength: newSecret.length });
+        await submitCommit(tableAddress, hashBytes);
+    }, [tableAddress, playerAddress, handNumber, submitCommit]);
 
     // Count active (non-sitting-out) seats
     const activeSeats = useMemo(() => seats.filter(s => s && !s.sittingOut).length, [seats]);
@@ -193,35 +237,27 @@ export function LifecyclePanel({
         if (!isActionOnPlayer && !isAdmin) return "Waiting for the acting player to start.";
         return null;
     }, [gameState.phase, isPaused, activeSeats, isAdminOnlyStart, isAdmin, isActionOnPlayer]);
-    const commitDisabled =
-        gameState.phase !== GAME_PHASES.COMMIT || !isActivePlayer || !secret || !secretHash || activeAction !== null;
-    const revealDisabled =
-        gameState.phase !== GAME_PHASES.REVEAL || !isActivePlayer || !secret || activeAction !== null;
 
-    const commitHint = useMemo(() => {
-        if (gameState.phase !== GAME_PHASES.COMMIT) return null;
-        if (!isSeatedPlayer) return "Join the table to commit.";
-        if (!isActivePlayer) return "Sit in to commit.";
-        if (!secret) return "Enter or generate a secret to commit.";
-        return null;
-    }, [gameState.phase, isSeatedPlayer, isActivePlayer, secret]);
+    // Request cards disabled if already committed, not active, or action in progress
+    const requestCardsDisabled =
+        gameState.phase !== GAME_PHASES.COMMIT ||
+        !isActivePlayer ||
+        hasCommitted ||
+        activeAction !== null;
 
-    const revealHint = useMemo(() => {
-        if (gameState.phase !== GAME_PHASES.REVEAL) return null;
-        if (!isSeatedPlayer) return "Join the table to reveal.";
-        if (!isActivePlayer) return "Sit in to reveal.";
-        if (!secret) return "Enter the same secret you committed.";
-        return null;
-    }, [gameState.phase, isSeatedPlayer, isActivePlayer, secret]);
+    // Progress counts
+    const committedCount = commitStatus.filter(Boolean).length;
+    const revealedCount = revealStatus.filter(Boolean).length;
+    const totalPlayers = playersInHand.length || committedCount || 1;
 
     const phaseMessage = () => {
         switch (gameState.phase) {
             case GAME_PHASES.WAITING:
                 return "Waiting for the next hand to start.";
             case GAME_PHASES.COMMIT:
-                return "Submit a hash of your secret to commit to your hidden card draw.";
+                return "Click 'Request Cards' to join this hand.";
             case GAME_PHASES.REVEAL:
-                return "Reveal the secret you committed to finalize randomness.";
+                return "Confirming card distribution...";
             case GAME_PHASES.PREFLOP:
             case GAME_PHASES.FLOP:
             case GAME_PHASES.TURN:
@@ -239,27 +275,39 @@ export function LifecyclePanel({
             <div className="lifecycle-header">
                 <Shield size={18} />
                 <div>
-                    <h3>Hand Lifecycle</h3>
-                    <p>Control hand start, commit, and reveal steps.</p>
+                    <h3>Hand #{handNumber || "—"}</h3>
+                    <p>{phaseMessage()}</p>
                 </div>
                 <span className="phase-pill">{PHASE_NAMES[gameState.phase] ?? "Unknown"}</span>
             </div>
 
-            <div className="phase-status">
-                <p className="phase-message">{phaseMessage()}</p>
-                {gameState.actionOn && (
-                    <p className="acting-player">
-                        Acting seat: {gameState.actionOn.seatIndex + 1} ({gameState.actionOn.playerAddress.slice(0, 6)}...
-                        {gameState.actionOn.playerAddress.slice(-4)})
-                    </p>
-                )}
-                {deadlineText && (
-                    <div className="deadline">
-                        <Clock3 size={16} />
-                        <span>Deadline: {deadlineText}</span>
+            {/* Progress indicator for commit/reveal phases */}
+            {(gameState.phase === GAME_PHASES.COMMIT || gameState.phase === GAME_PHASES.REVEAL) && (
+                <div className="progress-status">
+                    <Users size={16} />
+                    <span>
+                        {gameState.phase === GAME_PHASES.COMMIT
+                            ? `${committedCount}/${totalPlayers} players ready`
+                            : `${revealedCount}/${totalPlayers} confirmed`
+                        }
+                    </span>
+                    <div className="progress-bar">
+                        <div
+                            className="progress-fill"
+                            style={{
+                                width: `${(gameState.phase === GAME_PHASES.COMMIT ? committedCount : revealedCount) / totalPlayers * 100}%`
+                            }}
+                        />
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {deadlineText && (
+                <div className="deadline">
+                    <Clock3 size={16} />
+                    <span>Time remaining: {deadlineText}</span>
+                </div>
+            )}
 
             {gameState.phase === GAME_PHASES.WAITING && (
                 <div className="lifecycle-card">
@@ -268,7 +316,7 @@ export function LifecyclePanel({
                         <div>
                             <h4>Start Hand</h4>
                             <small>
-                                Seat {tableState ? tableState.dealerSeat + 1 : "-"} dealer starts the next hand.
+                                Seat {tableState ? tableState.dealerSeat + 1 : "-"} is dealer
                             </small>
                         </div>
                     </div>
@@ -284,111 +332,71 @@ export function LifecyclePanel({
             )}
 
             {gameState.phase === GAME_PHASES.COMMIT && (
-                <div className="lifecycle-card">
+                <div className="lifecycle-card request-cards-card">
                     <div className="card-header">
-                        <KeyRound size={18} />
+                        <Sparkles size={18} />
                         <div>
-                            <h4>Commit Secret</h4>
-                            <small>Generate or enter a secret to hash and commit.</small>
+                            <h4>Request Cards</h4>
+                            <small>Click to receive your hole cards for this hand</small>
                         </div>
                     </div>
 
-                    <div className="secret-controls">
-                        <div className="secret-input">
-                            <label htmlFor="commit-secret">Secret</label>
-                            <input
-                                id="commit-secret"
-                                type="text"
-                                value={secret}
-                                onChange={(e) => setSecret(e.target.value)}
-                                placeholder="Enter a secret phrase"
-                            />
+                    {hasCommitted ? (
+                        <div className="success-message">
+                            <Check size={18} />
+                            <span>Cards requested! Waiting for other players...</span>
                         </div>
-                        <button type="button" className="btn secondary" onClick={handleGenerateSecret}>
-                            Generate
+                    ) : (
+                        <button
+                            className="btn action request-cards-btn"
+                            onClick={() => runLifecycleAction(handleRequestCards, "commit")}
+                            disabled={requestCardsDisabled}
+                        >
+                            {activeAction === "commit" ? (
+                                <Loader2 className="spin" size={16} />
+                            ) : (
+                                <Sparkles size={16} />
+                            )}
+                            Request Cards
                         </button>
-                    </div>
-
-                    {secretHash && (
-                        <div className="hash-preview">
-                            <span>Commit hash</span>
-                            <code>{`0x${secretHash}`}</code>
-                        </div>
                     )}
 
-                    <button
-                        className="btn action"
-                        onClick={() =>
-                            runLifecycleAction(async () => {
-                                if (!secretHash) throw new Error("Unable to hash secret.");
-                                const hashBytes = hashSecretToBytes(secret);
-                                if (!hashBytes) throw new Error("Unable to hash secret.");
-                                const hashHex = "0x" + Array.from(hashBytes).map(b => b.toString(16).padStart(2, "0")).join("");
-                                console.log("COMMIT DEBUG:", {
-                                    secret,
-                                    secretLength: secret.length,
-                                    hashHex,
-                                    hashBytesLength: hashBytes.length,
-                                });
-                                await submitCommit(tableAddress, hashBytes);
-                            }, "commit")
-                        }
-                        disabled={commitDisabled}
-                    >
-                        {activeAction === "commit" ? <Loader2 className="spin" size={16} /> : <Shield size={16} />} Submit Commit
-                    </button>
-                    {commitHint && <small className="hint">{commitHint}</small>}
+                    {!isActivePlayer && isSeatedPlayer && (
+                        <small className="hint">Sit in to request cards.</small>
+                    )}
                 </div>
             )}
 
             {gameState.phase === GAME_PHASES.REVEAL && (
-                <div className="lifecycle-card">
+                <div className="lifecycle-card accept-cards-card">
                     <div className="card-header">
-                        <Eye size={18} />
+                        <Shield size={18} />
                         <div>
-                            <h4>Reveal Secret</h4>
-                            <small>Use the exact secret you committed earlier.</small>
+                            <h4>Accept Cards</h4>
+                            <small>Confirming fair card distribution</small>
                         </div>
                     </div>
 
-                    <div className="secret-controls">
-                        <div className="secret-input">
-                            <label htmlFor="reveal-secret">Secret</label>
-                            <input
-                                id="reveal-secret"
-                                type="text"
-                                value={secret}
-                                onChange={(e) => setSecret(e.target.value)}
-                                placeholder="Enter your committed secret"
-                            />
+                    {hasRevealed ? (
+                        <div className="success-message">
+                            <Check size={18} />
+                            <span>Confirmed! Waiting for other players...</span>
                         </div>
-                        <button type="button" className="btn secondary" onClick={handleGenerateSecret}>
-                            Generate
-                        </button>
-                    </div>
-
-                    <button
-                        className="btn action"
-                        onClick={() => {
-                            const secretBytes = new TextEncoder().encode(secret);
-                            const secretHex = "0x" + Array.from(secretBytes).map(b => b.toString(16).padStart(2, "0")).join("");
-                            // What the contract will compute
-                            const expectedHash = hashSecretToBytes(secret);
-                            const expectedHashHex = expectedHash ? "0x" + Array.from(expectedHash).map(b => b.toString(16).padStart(2, "0")).join("") : "null";
-                            console.log("REVEAL DEBUG:", {
-                                secret,
-                                secretLength: secret.length,
-                                secretHex,
-                                secretBytesLength: secretBytes.length,
-                                expectedHashHex,
-                            });
-                            runLifecycleAction(() => revealSecret(tableAddress, secretBytes), "reveal");
-                        }}
-                        disabled={revealDisabled}
-                    >
-                        {activeAction === "reveal" ? <Loader2 className="spin" size={16} /> : <Eye size={16} />} Reveal Secret
-                    </button>
-                    {revealHint && <small className="hint">{revealHint}</small>}
+                    ) : activeAction === "reveal" ? (
+                        <div className="loading-message">
+                            <Loader2 className="spin" size={18} />
+                            <span>Accepting cards... Please sign the transaction</span>
+                        </div>
+                    ) : storedSecret ? (
+                        <div className="loading-message">
+                            <Loader2 className="spin" size={18} />
+                            <span>Preparing to accept cards...</span>
+                        </div>
+                    ) : (
+                        <div className="error-message">
+                            <span>⚠️ Secret not found. You may need to refresh and wait for next hand.</span>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -412,6 +412,52 @@ export function useTableView() {
         }
     }, []);
 
+    const getCommitStatus = useCallback(async (tableAddress: string): Promise<boolean[]> => {
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_commit_status`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const commits = result[0];
+            if (Array.isArray(commits)) {
+                return commits.map((v) => Boolean(v));
+            }
+            if (commits && typeof commits === "object" && "vec" in commits) {
+                const vec = (commits as { vec: unknown[] }).vec;
+                return Array.isArray(vec) ? vec.map((v) => Boolean(v)) : [];
+            }
+            return [];
+        } catch (e) {
+            console.warn("Failed to get commit status:", e);
+            return [];
+        }
+    }, []);
+
+    const getRevealStatus = useCallback(async (tableAddress: string): Promise<boolean[]> => {
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_reveal_status`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            const reveals = result[0];
+            if (Array.isArray(reveals)) {
+                return reveals.map((v) => Boolean(v));
+            }
+            if (reveals && typeof reveals === "object" && "vec" in reveals) {
+                const vec = (reveals as { vec: unknown[] }).vec;
+                return Array.isArray(vec) ? vec.map((v) => Boolean(v)) : [];
+            }
+            return [];
+        } catch (e) {
+            console.warn("Failed to get reveal status:", e);
+            return [];
+        }
+    }, []);
+
     return {
         getTableConfig,
         getTableState,
@@ -433,6 +479,8 @@ export function useTableView() {
         getSeatCount,
         getHoleCards,
         getPlayersInHand,
+        getCommitStatus,
+        getRevealStatus,
     };
 }
 

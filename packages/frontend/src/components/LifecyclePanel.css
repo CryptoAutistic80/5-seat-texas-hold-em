@@ -265,3 +265,109 @@
     color: #f6d18b;
     text-align: center;
 }
+
+/* Progress Indicator */
+.progress-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(74, 223, 154, 0.08);
+    border: 1px solid rgba(74, 223, 154, 0.2);
+    border-radius: 12px;
+    color: var(--color-action);
+    font-weight: 500;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-action) 0%, #4adf9a 100%);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+/* Request Cards Card */
+.request-cards-card {
+    background: linear-gradient(135deg, rgba(100, 120, 255, 0.12) 0%, rgba(74, 223, 154, 0.08) 100%);
+    border-color: rgba(100, 120, 255, 0.25);
+}
+
+.request-cards-btn {
+    background: linear-gradient(135deg, #6478ff 0%, #4a9eff 100%) !important;
+    color: white !important;
+    font-size: 1rem;
+    padding: 14px 20px !important;
+}
+
+.request-cards-btn:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(100, 120, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Accept Cards Card */
+.accept-cards-card {
+    background: linear-gradient(135deg, rgba(246, 194, 111, 0.12) 0%, rgba(74, 223, 154, 0.08) 100%);
+    border-color: rgba(246, 194, 111, 0.25);
+}
+
+/* Success Message */
+.success-message {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(74, 223, 154, 0.15);
+    border: 1px solid rgba(74, 223, 154, 0.35);
+    border-radius: 10px;
+    color: #4adf9a;
+    font-weight: 500;
+}
+
+.success-message svg {
+    flex-shrink: 0;
+}
+
+/* Loading Message */
+.loading-message {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(100, 120, 255, 0.12);
+    border: 1px solid rgba(100, 120, 255, 0.25);
+    border-radius: 10px;
+    color: #a8b4ff;
+    font-weight: 500;
+}
+
+/* Error Message */
+.error-message {
+    padding: 14px;
+    background: rgba(255, 107, 107, 0.12);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    border-radius: 10px;
+    color: #ffb3b3;
+    font-weight: 500;
+}
+
+/* Deadline styling update */
+.deadline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(240, 180, 82, 0.1);
+    border: 1px solid rgba(240, 180, 82, 0.2);
+    border-radius: 8px;
+    color: var(--color-warning);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
