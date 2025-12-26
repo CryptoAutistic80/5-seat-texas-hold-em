@@ -97,6 +97,17 @@ See [`packages/contracts/docs/DOCUMENTATION.md`](packages/contracts/docs/DOCUMEN
 
 See [`packages/contracts/docs/DEPLOYMENT.md`](packages/contracts/docs/DEPLOYMENT.md) for deployment history and instructions.
 
+## 🚀 GitHub Pages Deployment
+
+This repo includes a GitHub Actions workflow that builds the frontend and deploys it to GitHub Pages on every push to `main`.
+
+1. In GitHub, go to **Settings → Pages**.
+2. Set **Source** to **GitHub Actions**.
+
+Once enabled, the site will publish at:
+
+`https://<org-or-user>.github.io/<repo>/`
+
 ## 🎰 Features
 
 ### Game Features
