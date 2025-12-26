@@ -143,4 +143,4 @@ VITE_CONTRACT_ADDRESS=0x4d5a5fa1dae6d81ed71492a873fc358766a2d55d7020c44bd5b9e68f
 
 ## 📄 License
 
-MIT
+Proprietary — Copyright (c) 2025 Singularity Shift Ltd & Spielcrypto Ltd. All rights reserved.
