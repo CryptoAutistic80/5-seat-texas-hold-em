@@ -84,6 +84,31 @@ function normalizeNestedU8Vectors(value: unknown): number[][] {
 }
 
 /**
+ * Normalize vector<bool> to boolean[].
+ */
+function normalizeBoolVector(value: unknown): boolean[] {
+    if (Array.isArray(value)) {
+        return value.map((v) => {
+            if (typeof v === "boolean") return v;
+            if (typeof v === "number") return v !== 0;
+            if (typeof v === "string") return v === "true" || v === "1";
+            return Boolean(v);
+        });
+    }
+
+    if (value instanceof Uint8Array) {
+        return Array.from(value).map((v) => v !== 0);
+    }
+
+    if (value && typeof value === "object" && "vec" in value) {
+        return normalizeBoolVector((value as { vec: unknown }).vec);
+    }
+
+    console.warn("normalizeBoolVector: unexpected format", typeof value, value);
+    return [];
+}
+
+/**
  * Hook for reading table data from the contract
  */
 export function useTableView() {
@@ -412,6 +437,21 @@ export function useTableView() {
         }
     }, []);
 
+    const getCommitStatus = useCallback(async (tableAddress: string): Promise<boolean[]> => {
+        try {
+            const result = await cedra.view({
+                payload: {
+                    function: `${MODULES.TEXAS_HOLDEM}::get_commit_status`,
+                    functionArguments: [tableAddress],
+                },
+            });
+            return normalizeBoolVector(result[0]);
+        } catch (e) {
+            console.warn("Failed to get commit status:", e);
+            return [];
+        }
+    }, []);
+
     return {
         getTableConfig,
         getTableState,
@@ -433,6 +473,7 @@ export function useTableView() {
         getSeatCount,
         getHoleCards,
         getPlayersInHand,
+        getCommitStatus,
     };
 }
 

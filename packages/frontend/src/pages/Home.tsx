@@ -91,7 +91,7 @@ export function Home() {
                     <div className="info-card">
                         <div className="info-number">3</div>
                         <h3>Play Poker</h3>
-                        <p>Standard Texas Hold'em rules with commit-reveal randomness</p>
+                        <p>Standard Texas Hold'em rules with secure shuffle randomness</p>
                     </div>
                     <div className="info-card">
                         <div className="info-number">4</div>

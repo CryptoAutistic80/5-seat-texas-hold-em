@@ -97,39 +97,6 @@
     color: var(--color-text-dim);
 }
 
-.secret-controls {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-}
-
-.secret-input {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.secret-input input {
-    background: rgba(6, 8, 12, 0.9);
-    color: var(--color-text);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 10px;
-}
-
-.hash-preview {
-    background: rgba(8, 10, 14, 0.95);
-    border: 1px solid rgba(246, 194, 111, 0.2);
-    border-radius: 8px;
-    padding: 10px;
-    color: var(--color-accent);
-    font-family: var(--font-mono);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
 .btn.action {
     display: inline-flex;
     align-items: center;

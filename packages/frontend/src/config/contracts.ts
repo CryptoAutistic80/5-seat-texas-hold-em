@@ -28,8 +28,8 @@ export const GAME_PHASES = {
 
 export const PHASE_NAMES: Record<number, string> = {
     0: "Waiting",
-    1: "Commit",
-    2: "Reveal",
+    1: "Request Cards",
+    2: "Accept Cards",
     3: "Pre-Flop",
     4: "Flop",
     5: "Turn",

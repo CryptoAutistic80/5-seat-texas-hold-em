@@ -17,7 +17,7 @@ import "./Table.css";
 export function Table() {
     const { address } = useParams<{ address: string }>();
     const { connected, account } = useWallet();
-    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getHoleCards, getPlayersInHand } = useTableView();
+    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getHoleCards, getPlayersInHand, getCommitStatus } = useTableView();
     const { joinTable } = useContractActions();
     const { getBalance } = useChipsView();
     const { getHandResultEvents } = useEventView();
@@ -42,6 +42,7 @@ export function Table() {
     const [adminOpen, setAdminOpen] = useState(false);
     const [holeCards, setHoleCards] = useState<number[][]>([]);
     const [playersInHand, setPlayersInHand] = useState<number[]>([]);
+    const [commitStatus, setCommitStatus] = useState<boolean[]>([]);
 
     // Hand result data - captured when a hand ends, used for showdown modal
     const [handResult, setHandResult] = useState<HandResultData | null>(null);
@@ -62,7 +63,7 @@ export function Table() {
                 setError(null);
             }
 
-            const [configData, stateData, seatsData, gameData, admin, paused, adminOnly, leaves, holeCardsData, playersData] = await Promise.all([
+            const [configData, stateData, seatsData, gameData, admin, paused, adminOnly, leaves, holeCardsData, playersData, commitStatusData] = await Promise.all([
                 getTableConfig(address),
                 getTableState(address),
                 getAllSeats(address),
@@ -73,6 +74,7 @@ export function Table() {
                 getPendingLeaves(address),
                 getHoleCards(address),
                 getPlayersInHand(address),
+                getCommitStatus(address),
             ]);
 
             // Detect hand completion: phase transitions from active to WAITING
@@ -139,6 +141,7 @@ export function Table() {
             setPendingLeaves(leaves);
             setHoleCards(holeCardsData);
             setPlayersInHand(playersData);
+            setCommitStatus(commitStatusData);
 
             // Debug: Log hole cards data
             console.log("DEBUG hole cards:", { holeCardsData, playersData, phase: gameData.phase });
@@ -426,6 +429,8 @@ export function Table() {
                                 isAdmin={connected && !!account?.address && adminAddress.toLowerCase() === account.address.toString().toLowerCase()}
                                 isAdminOnlyStart={adminOnlyStart}
                                 isPaused={tablePaused}
+                                playersInHand={playersInHand}
+                                commitStatus={commitStatus}
                                 onRefresh={loadTableData}
                             />
                         )}
