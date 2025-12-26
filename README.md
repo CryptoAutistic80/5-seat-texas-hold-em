@@ -2,6 +2,23 @@
 
 A decentralized 5-seat Texas Hold'em poker game built on the Cedra blockchain with Move smart contracts and a React frontend.
 
+## 🎮 Game Flow
+
+```mermaid
+flowchart LR
+    A[Create Table] --> B[Join Table]
+    B --> C[Start Hand]
+    C --> D[Commit Phase]
+    D --> E[Reveal Phase]
+    E --> F[Deal Cards]
+    F --> G[Betting Rounds]
+    G --> H{Winner?}
+    H -->|Fold Win| I[Payout]
+    H -->|Showdown| J[Evaluate Hands]
+    J --> I
+    I --> C
+```
+
 ## 📁 Project Structure
 
 ```
@@ -9,7 +26,7 @@ A decentralized 5-seat Texas Hold'em poker game built on the Cedra blockchain wi
 ├── packages/
 │   ├── contracts/          # Move smart contracts
 │   │   ├── sources/        # Contract source files
-│   │   ├── tests/          # Contract tests
+│   │   ├── tests/          # Contract tests (79 tests)
 │   │   ├── docs/           # Contract documentation
 │   │   └── Move.toml       # Move package config
 │   └── frontend/           # React + TypeScript frontend
@@ -24,7 +41,7 @@ A decentralized 5-seat Texas Hold'em poker game built on the Cedra blockchain wi
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18+)
-- [Cedra CLI](https://github.com/cedra-labs/cedra-framework) for smart contract development
+- [Cedra CLI](https://docs.cedra.network/) for smart contract development
 
 ### Installation
 
@@ -40,6 +57,12 @@ npm install
 ```bash
 # Start the frontend development server
 npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 #### Smart Contracts
@@ -56,22 +79,67 @@ npm run contracts:test
 
 The Move smart contracts handle:
 
-- **`texas_holdem.move`** - Core game logic (table management, betting, hand progression)
-- **`chips.move`** - Chip/token management
-- **`hand_eval.move`** - Poker hand evaluation
-- **`pot_manager.move`** - Pot calculation and side pot management
-- **`poker_events.move`** - On-chain event emissions
+| Module | Description |
+|--------|-------------|
+| `texas_holdem.move` | Core game logic (table management, betting, hand progression) |
+| `chips.move` | Chip/token management (1 CEDRA = 1000 chips) |
+| `hand_eval.move` | Poker hand evaluation (High Card → Royal Flush) |
+| `pot_manager.move` | Pot calculation and side pot management |
+| `poker_events.move` | 25 on-chain event types |
+
+### Current Deployment
+
+- **Network:** Cedra Testnet
+- **Address:** `0x4d5a5fa1dae6d81ed71492a873fc358766a2d55d7020c44bd5b9e68f9ca1dbf5`
+- **Fee Rate:** 0.5% (with fractional accumulator for precise collection)
 
 See [`packages/contracts/docs/DOCUMENTATION.md`](packages/contracts/docs/DOCUMENTATION.md) for detailed contract documentation.
 
-## 🎮 Frontend
+See [`packages/contracts/docs/DEPLOYMENT.md`](packages/contracts/docs/DEPLOYMENT.md) for deployment history and instructions.
+
+## 🎰 Features
+
+### Game Features
+- ✅ 5-seat poker tables
+- ✅ Configurable blinds, antes, and straddles
+- ✅ Side pot management
+- ✅ Commit-reveal randomness for fair shuffling
+- ✅ Timeout handling with auto-fold
+- ✅ All-in runout (auto-deal remaining cards)
+
+### Admin Features
+- ✅ Table creation and configuration
+- ✅ Player management (kick, force sit-out)
+- ✅ Emergency abort (refund all bets)
+- ✅ Pause/resume tables
+- ✅ Transfer table ownership
+
+### Fee System
+- ✅ 0.5% service fee on all pots
+- ✅ Fractional accumulator for precise collection
+- ✅ Configurable fee collector address
+
+## 🎨 Frontend
 
 The React frontend provides:
 
-- Wallet connection
+- Wallet connection (Zedra Wallet)
 - Table browsing and creation
-- Real-time game interface
-- Player actions (fold, check, call, raise)
+- Real-time game interface with card display
+- Player actions (fold, check, call, raise, all-in)
+- Commit-reveal workflow for fair dealing
+- Showdown results with hand rankings
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `packages/frontend/.env`:
+
+```env
+VITE_NETWORK=testnet
+VITE_CONTRACT_ADDRESS=0x4d5a5fa1dae6d81ed71492a873fc358766a2d55d7020c44bd5b9e68f9ca1dbf5
+```
 
 ## 📄 License
 
