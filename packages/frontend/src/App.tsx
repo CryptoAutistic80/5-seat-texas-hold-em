@@ -25,7 +25,7 @@ function AppShell() {
 function App() {
   return (
     <WalletProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AppShell />
       </BrowserRouter>
     </WalletProvider>
