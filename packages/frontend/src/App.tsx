@@ -23,9 +23,17 @@ function AppShell() {
 }
 
 function App() {
+  const repoBase = "/5-seat-texas-hold-em";
+  const baseName =
+    typeof window !== "undefined" &&
+    (window.location.pathname === repoBase ||
+      window.location.pathname.startsWith(`${repoBase}/`))
+      ? repoBase
+      : "/";
+
   return (
     <WalletProvider>
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <BrowserRouter basename={baseName}>
         <AppShell />
       </BrowserRouter>
     </WalletProvider>

@@ -6,8 +6,13 @@
     <title>Redirecting...</title>
     <script>
       (function () {
-        var segmentCount = 1;
+        var repoBase = "/5-seat-texas-hold-em";
         var location = window.location;
+        var segmentCount =
+          location.pathname === repoBase ||
+          location.pathname.startsWith(repoBase + "/")
+            ? 1
+            : 0;
         var pathname = location.pathname.split("/");
         var base = pathname.slice(0, 1 + segmentCount).join("/");
         var rest = pathname.slice(1 + segmentCount).join("/");
