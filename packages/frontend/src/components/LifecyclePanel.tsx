@@ -115,14 +115,6 @@ export function LifecyclePanel({
         }
     }, [tableAddress, playerAddress, handNumber, secret]);
 
-    const isActionOnPlayer = useMemo(() => {
-        if (playerSeat === null || !playerAddress || !gameState.actionOn) return false;
-        return (
-            gameState.actionOn.seatIndex === playerSeat &&
-            gameState.actionOn.playerAddress?.toLowerCase() === playerAddress.toLowerCase()
-        );
-    }, [gameState.actionOn, playerAddress, playerSeat]);
-
     const deadlineText = useMemo(() => formatDeadline(gameState.actionOn?.deadline), [gameState.actionOn?.deadline]);
 
     const generateSecret = useCallback(() => {
@@ -182,8 +174,8 @@ export function LifecyclePanel({
         setSecret,
     ]);
 
-    // Admin can start when admin_only_start is on, otherwise anyone who is action-on player or admin
-    const canStartHand = isAdminOnlyStart ? isAdmin : (isActionOnPlayer || isAdmin);
+    // Admin can start when admin_only_start is on, otherwise any active player can start
+    const canStartHand = isAdminOnlyStart ? isAdmin : isActivePlayer;
 
     const startDisabled =
         gameState.phase !== GAME_PHASES.WAITING ||
@@ -197,9 +189,10 @@ export function LifecyclePanel({
         if (isPaused) return "Table is paused.";
         if (activeSeats < 2) return "Need at least 2 active players.";
         if (isAdminOnlyStart && !isAdmin) return "Only admin can start hands.";
-        if (!isActionOnPlayer && !isAdmin) return "Waiting for the acting player to start.";
+        if (!isSeatedPlayer) return "Join the table to start.";
+        if (!isActivePlayer) return "Sit in to start.";
         return null;
-    }, [gameState.phase, isPaused, activeSeats, isAdminOnlyStart, isAdmin, isActionOnPlayer]);
+    }, [gameState.phase, isPaused, activeSeats, isAdminOnlyStart, isAdmin, isSeatedPlayer, isActivePlayer]);
     const commitDisabled =
         gameState.phase !== GAME_PHASES.COMMIT || !isActivePlayer || !secret || alreadyCommitted || activeAction !== null;
     const revealDisabled =
