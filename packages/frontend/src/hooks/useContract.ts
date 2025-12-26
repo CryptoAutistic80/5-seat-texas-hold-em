@@ -484,6 +484,70 @@ export function useChipsView() {
 }
 
 /**
+ * Hook for fetching blockchain events
+ */
+export function useEventView() {
+    /**
+     * Fetch HandResult events for a specific table address
+     * Returns the most recent hand result events
+     */
+    const getHandResultEvents = useCallback(async (tableAddress: string, limit: number = 1) => {
+        try {
+            // Event type format: contract_address::module::EventName
+            // Events are stored at the contract/module address, not the table address
+            const eventType = `${MODULES.POKER_EVENTS}::HandResult`;
+
+            console.log("DEBUG: Fetching events for type:", eventType, "table:", tableAddress);
+
+            // Use the Cedra SDK to fetch events filtered by event type
+            const events = await cedra.getEvents({
+                options: {
+                    limit: limit * 10, // Fetch more and filter client-side for the specific table
+                    orderBy: [{ transaction_version: "desc" }],
+                    where: {
+                        indexed_type: { _eq: eventType }
+                    }
+                }
+            });
+
+            console.log("DEBUG: Raw events fetched:", events.length, events);
+
+            // Filter events for this specific table and transform to our interface
+            const tableEvents = events
+                .filter((event: { data: Record<string, unknown> }) => {
+                    const eventTableAddr = String(event.data.table_addr || "").toLowerCase();
+                    return eventTableAddr === tableAddress.toLowerCase();
+                })
+                .slice(0, limit)
+                .map((event: { data: Record<string, unknown>; transaction_version?: string }) => ({
+                    tableAddr: String(event.data.table_addr || tableAddress),
+                    handNumber: parseInt(String(event.data.hand_number || "0")),
+                    timestamp: parseInt(String(event.data.timestamp || "0")),
+                    communityCards: normalizeU8Vector(event.data.community_cards),
+                    showdownSeats: (event.data.showdown_seats as string[] || []).map((s: string) => parseInt(s)),
+                    showdownPlayers: (event.data.showdown_players as string[]) || [],
+                    showdownHoleCards: ((event.data.showdown_hole_cards as unknown[][]) || []).map((cards: unknown) => normalizeU8Vector(cards)),
+                    showdownHandTypes: normalizeU8Vector(event.data.showdown_hand_types),
+                    winnerSeats: (event.data.winner_seats as string[] || []).map((s: string) => parseInt(s)),
+                    winnerPlayers: (event.data.winner_players as string[]) || [],
+                    winnerAmounts: (event.data.winner_amounts as string[] || []).map((a: string) => parseInt(a)),
+                    totalPot: parseInt(String(event.data.total_pot || "0")),
+                    totalFees: parseInt(String(event.data.total_fees || "0")),
+                    resultType: parseInt(String(event.data.result_type || "0")),
+                }));
+
+            console.log("DEBUG: Filtered table events:", tableEvents);
+            return tableEvents;
+        } catch (err) {
+            console.error("Failed to fetch HandResult events:", err);
+            return [];
+        }
+    }, []);
+
+    return { getHandResultEvents };
+}
+
+/**
  * Hook for executing contract transactions
  */
 export function useContractActions() {

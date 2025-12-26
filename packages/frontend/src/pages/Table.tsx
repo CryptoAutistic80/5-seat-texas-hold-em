@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Shield, X } from "lucide-react";
 import { useWallet } from "../components/wallet-provider";
-import { useChipsView, useContractActions, useTableView } from "../hooks/useContract";
+import { useChipsView, useContractActions, useTableView, useEventView } from "../hooks/useContract";
 import { PokerTable } from "../components/PokerTable";
 import { ActionPanel } from "../components/ActionPanel";
 import { TableInfo } from "../components/TableInfo";
@@ -20,6 +20,7 @@ export function Table() {
     const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getHoleCards, getPlayersInHand } = useTableView();
     const { joinTable } = useContractActions();
     const { getBalance } = useChipsView();
+    const { getHandResultEvents } = useEventView();
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -86,60 +87,42 @@ export function Table() {
                 handNumberRef.current = stateData.handNumber;
             }
 
-            // Capture hand result if hand just ended and we have card data
-            if (handJustEnded && !handResult) {
-                // Use CURRENT state (before update) which still has the cards
-                const snapshotCards = holeCards.length > 0 ? holeCards : holeCardsData;
-                const snapshotPlayers = playersInHand.length > 0 ? playersInHand : playersData;
-                const snapshotCommunity = gameState?.communityCards || [];
-                const snapshotPot = gameState?.potSize || 0;
+            // Debug: Log phase transition
+            console.log("DEBUG phase:", { prevPhase, newPhase, wasInActiveHand, handJustEnded, handResult: !!handResult });
 
-                // Only show result if there were cards dealt
-                if (snapshotCommunity.length > 0 || snapshotCards.some(c => c.length > 0)) {
-                    // Determine if this was a fold win (prevPhase < SHOWDOWN and only one player)
-                    const isFoldWin = prevPhase !== null && prevPhase < GAME_PHASES.SHOWDOWN;
+            // Fetch hand result events when hand ends
+            if (handJustEnded && !handResult && address) {
+                console.log("DEBUG: Hand ended, fetching HandResult events...");
 
-                    // Build showdown data (for now, we show all players' cards)
-                    // In a full implementation, we'd only show non-folded players
-                    const showdownSeats: number[] = [];
-                    const showdownPlayers: string[] = [];
-                    const showdownHoleCards: number[][] = [];
-                    const showdownHandTypes: number[] = [];
+                // Fetch the most recent HandResult event from the blockchain
+                const events = await getHandResultEvents(address, 1);
 
-                    snapshotPlayers.forEach((seatIdx, handIdx) => {
-                        const playerCards = snapshotCards[handIdx] || [];
-                        if (playerCards.length === 2) {
-                            showdownSeats.push(seatIdx);
-                            const seat = seats[seatIdx];
-                            showdownPlayers.push(seat?.player || "");
-                            showdownHoleCards.push(playerCards);
-                            // We don't have hand type info from frontend snapshot
-                            // (full implementation would get this from contract event)
-                            showdownHandTypes.push(0);
-                        }
-                    });
-
-                    // Determine winner (simplified: we can't know from frontend who won)
-                    // For now, we'll just display all hands and rely on the contract event for accurate data
-                    // The frontend can later be enhanced to fetch the actual HandResult event
-                    setHandResult({
-                        tableAddr: address || "",
-                        handNumber: handNumberRef.current,
-                        timestamp: Math.floor(Date.now() / 1000),
-                        communityCards: snapshotCommunity,
-                        showdownSeats,
-                        showdownPlayers,
-                        showdownHoleCards,
-                        showdownHandTypes,
-                        // Winner data - we don't have this from the frontend snapshot
-                        // In a full implementation, fetch from the HandResult event
-                        winnerSeats: showdownSeats.length > 0 ? [showdownSeats[0]] : [],
-                        winnerPlayers: showdownPlayers.length > 0 ? [showdownPlayers[0]] : [],
-                        winnerAmounts: [snapshotPot],
-                        totalPot: snapshotPot,
-                        totalFees: 0,
-                        resultType: isFoldWin ? 1 : 0,
-                    });
+                if (events.length > 0) {
+                    const eventData = events[0];
+                    console.log("DEBUG: HandResult event found:", eventData);
+                    setHandResult(eventData);
+                } else {
+                    console.log("DEBUG: No HandResult event found, falling back to snapshot");
+                    // Fallback: Use snapshot data if no event found (shouldn't happen normally)
+                    const snapshotPot = gameState?.potSize || 0;
+                    if (snapshotPot > 0) {
+                        setHandResult({
+                            tableAddr: address,
+                            handNumber: handNumberRef.current,
+                            timestamp: Math.floor(Date.now() / 1000),
+                            communityCards: gameState?.communityCards || [],
+                            showdownSeats: [],
+                            showdownPlayers: [],
+                            showdownHoleCards: [],
+                            showdownHandTypes: [],
+                            winnerSeats: [],
+                            winnerPlayers: [],
+                            winnerAmounts: [],
+                            totalPot: snapshotPot,
+                            totalFees: 0,
+                            resultType: 0,
+                        });
+                    }
                 }
             }
 

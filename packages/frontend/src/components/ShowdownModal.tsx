@@ -47,10 +47,10 @@ export function ShowdownModal({ handResult, onDismiss }: ShowdownModalProps) {
         return idx >= 0 ? winnerAmounts[idx] : 0;
     };
     const getHandTypeName = (handType: number) => {
-        // Hand types from contract: 1=high card, 10=royal flush
-        // (0 means folded/not evaluated)
-        if (handType === 0) return "";
-        return HAND_RANKINGS[handType - 1] || `Hand ${handType}`;
+        // Hand types from contract: 0=High Card, 1=One Pair, 2=Two Pair, ..., 9=Royal Flush
+        // (negative or out of range means not evaluated)
+        if (handType < 0 || handType >= HAND_RANKINGS.length) return "";
+        return HAND_RANKINGS[handType] || `Hand ${handType}`;
     };
 
     const isFoldWin = resultType === 1;
