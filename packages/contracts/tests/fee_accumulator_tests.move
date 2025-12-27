@@ -13,10 +13,11 @@ module holdemgame::fee_accumulator_tests {
     // HELPER FUNCTIONS
     // ============================================
 
-    fun setup_table_and_fee_config(admin: &signer) {
+    fun setup_table_and_fee_config(admin: &signer): address {
         chips::init_for_test(admin);
         texas_holdem::init_fee_config(admin, @0xFEE);
         texas_holdem::create_table(admin, 5, 10, 50, 1000, 0, false);
+        texas_holdem::get_table_address(signer::address_of(admin))
     }
 
     // ============================================
@@ -25,11 +26,10 @@ module holdemgame::fee_accumulator_tests {
 
     #[test(admin = @holdemgame)]
     fun test_get_fee_accumulator_initial_zero(admin: &signer) {
-        setup_table_and_fee_config(admin);
-        let admin_addr = signer::address_of(admin);
+        let table_addr = setup_table_and_fee_config(admin);
         
         // New table should have zero fee accumulator
-        let accumulator = texas_holdem::get_fee_accumulator(admin_addr);
+        let accumulator = texas_holdem::get_fee_accumulator(table_addr);
         assert!(accumulator == 0, 1);
     }
 
@@ -38,7 +38,7 @@ module holdemgame::fee_accumulator_tests {
     fun test_get_fee_accumulator_no_table_fails(admin: &signer) {
         chips::init_for_test(admin);
         
-        // Should fail - no table exists
+        // Should fail - no table exists at random address
         texas_holdem::get_fee_accumulator(@0xDEAD);
     }
 
@@ -68,14 +68,13 @@ module holdemgame::fee_accumulator_tests {
 
     #[test(admin = @holdemgame)]
     fun test_close_table_with_zero_accumulator(admin: &signer) {
-        setup_table_and_fee_config(admin);
-        let admin_addr = signer::address_of(admin);
+        let table_addr = setup_table_and_fee_config(admin);
         
         // Verify accumulator is zero
-        assert!(texas_holdem::get_fee_accumulator(admin_addr) == 0, 1);
+        assert!(texas_holdem::get_fee_accumulator(table_addr) == 0, 1);
         
         // Close table should succeed with zero accumulator
-        texas_holdem::close_table(admin, admin_addr);
+        texas_holdem::close_table(admin, table_addr);
         
         // Table should no longer exist (will fail if we try to access it)
         // Just verify it didn't abort

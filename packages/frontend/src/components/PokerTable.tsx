@@ -9,7 +9,7 @@ interface PokerTableProps {
     playerSeat: number | null;
     onSeatSelect?: (seatIndex: number) => void;
     selectedSeat?: number | null;
-    holeCards?: number[][];
+    encryptedHoleCards?: number[][];
     playersInHand?: number[];
 }
 
@@ -20,7 +20,7 @@ export function PokerTable({
     playerSeat,
     onSeatSelect,
     selectedSeat,
-    holeCards = [],
+    encryptedHoleCards = [],
     playersInHand = [],
 }: PokerTableProps) {
     // Position seats around an oval table (visual positions)
@@ -48,13 +48,14 @@ export function PokerTable({
         gameState?.actionOn?.seatIndex === seatIdx;
 
     // Get hole cards for a specific seat index
+    // Note: Cards returned are encrypted - frontend decrypts using player's secret
     const getHoleCardsForSeat = (seatIdx: number): number[] => {
         // Cards are only dealt in PREFLOP phase or later (phase >= 3)
         if (!gameState || gameState.phase < GAME_PHASES.PREFLOP) return [];
 
         const handIdx = playersInHand.indexOf(seatIdx);
-        if (handIdx === -1 || handIdx >= holeCards.length) return [];
-        return holeCards[handIdx] || [];
+        if (handIdx === -1 || handIdx >= encryptedHoleCards.length) return [];
+        return encryptedHoleCards[handIdx] || [];
     };
 
     // Create array of visual positions [0,1,2,3,4] and render seats in that order
