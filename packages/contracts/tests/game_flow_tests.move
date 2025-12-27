@@ -126,5 +126,44 @@ module holdemgame::game_flow_tests {
     // - Betting rounds (requires game state)
     // - Timeout handling (uses timestamp)
     // - Commit/reveal flow
+
+    // ============================================
+    // PAUSED TABLE TESTS
+    // ============================================
+
+    #[test(admin = @holdemgame, player = @0xBEEF)]
+    #[expected_failure(abort_code = 9, location = holdemgame::texas_holdem)]
+    fun test_join_paused_table_fails(admin: &signer, player: &signer) {
+        setup_table(admin);
+        let admin_addr = signer::address_of(admin);
+        
+        // Pause the table
+        texas_holdem::pause_table(admin, admin_addr);
+        
+        // Try to join - should fail with E_INVALID_ACTION
+        let player_addr = signer::address_of(player);
+        chips::mint_test_chips(player_addr, 500);
+        texas_holdem::join_table(player, admin_addr, 0, 200);
+    }
+
+    #[test(admin = @holdemgame, player = @0xBEEF)]
+    fun test_join_after_resume_succeeds(admin: &signer, player: &signer) {
+        setup_table(admin);
+        let admin_addr = signer::address_of(admin);
+        
+        // Pause then resume
+        texas_holdem::pause_table(admin, admin_addr);
+        texas_holdem::resume_table(admin, admin_addr);
+        
+        // Join should now succeed
+        let player_addr = signer::address_of(player);
+        chips::mint_test_chips(player_addr, 500);
+        texas_holdem::join_table(player, admin_addr, 0, 200);
+        
+        // Verify join succeeded
+        let (seat_player, seat_chips, _) = texas_holdem::get_seat_info(admin_addr, 0);
+        assert!(seat_player == player_addr, 1);
+        assert!(seat_chips == 200, 2);
+    }
 }
 

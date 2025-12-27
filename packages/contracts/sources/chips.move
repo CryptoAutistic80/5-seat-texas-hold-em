@@ -78,6 +78,11 @@ module holdemgame::chips {
     fun init_module(deployer: &signer) {
         let deployer_addr = signer::address_of(deployer);
         
+        // CRITICAL: Prevent reinitialization attack
+        // Without this check, a malicious redeploy could reset chip supply,
+        // override admin, and seize the treasury
+        assert!(!exists<ChipManager>(@holdemgame), E_ALREADY_INITIALIZED);
+        
         // Create the FA metadata object
         let constructor_ref = object::create_named_object(deployer, b"POKER_CHIPS");
         
@@ -266,6 +271,20 @@ module holdemgame::chips {
     /// Get exchange rate (chips per CEDRA)
     public fun get_exchange_rate(): u64 {
         CHIPS_PER_CEDRA
+    }
+
+    #[view]
+    /// Get total chips currently in circulation
+    /// Useful for auditing and transparency
+    public fun get_total_chip_supply(): u128 acquires ChipManager {
+        if (!exists<ChipManager>(@holdemgame)) { return 0 };
+        let manager = borrow_global<ChipManager>(@holdemgame);
+        let supply_opt = fungible_asset::supply(manager.metadata);
+        if (option::is_some(&supply_opt)) {
+            option::extract(&mut supply_opt)
+        } else {
+            0
+        }
     }
 
     // ============================================

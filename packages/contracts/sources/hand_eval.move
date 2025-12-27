@@ -50,6 +50,23 @@ module holdemgame::hand_eval {
     ///
     /// The tiebreaker encodes the relevant card ranks in order of importance.
     public fun evaluate_hand(cards: vector<u8>): (u8, u64) {
+        // Validate exactly 7 cards (2 hole + 5 community)
+        assert!(vector::length(&cards) == 7, 1); // E_INVALID_CARD_COUNT
+        
+        // Check for duplicate cards (would indicate invalid game state)
+        let i = 0u64;
+        while (i < 7) {
+            let j = i + 1;
+            while (j < 7) {
+                assert!(
+                    *vector::borrow(&cards, i) != *vector::borrow(&cards, j),
+                    2 // E_DUPLICATE_CARD
+                );
+                j = j + 1;
+            };
+            i = i + 1;
+        };
+        
         // Count ranks and suits
         let rank_counts = count_ranks(&cards);
         let suit_counts = count_suits(&cards);

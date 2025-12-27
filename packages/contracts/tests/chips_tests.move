@@ -51,4 +51,30 @@ module holdemgame::chips_tests {
     // The fact that this test module can call mint_test_chips (which is
     // test_only) but cannot call transfer_chips (public(friend)) 
     // demonstrates the access control is working.
+
+    // ============================================
+    // CHIP SUPPLY TRANSPARENCY TESTS
+    // ============================================
+
+    #[test(deployer = @holdemgame)]
+    fun test_total_supply_initial_zero(deployer: &signer) {
+        chips::init_for_test(deployer);
+        
+        // Initially no chips minted
+        let supply = chips::get_total_chip_supply();
+        assert!(supply == 0, 1);
+    }
+
+    #[test(deployer = @holdemgame)]
+    fun test_total_supply_after_minting(deployer: &signer) {
+        chips::init_for_test(deployer);
+        
+        // Mint chips to multiple addresses
+        chips::mint_test_chips(@0xAAA, 1000);
+        chips::mint_test_chips(@0xBBB, 500);
+        
+        // Total supply should be 1500
+        let supply = chips::get_total_chip_supply();
+        assert!(supply == 1500, 1);
+    }
 }

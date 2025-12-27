@@ -13,6 +13,7 @@ module holdemgame::texas_holdem {
     use std::option::{Self, Option};
     use cedra_std::hash;
     use cedra_framework::timestamp;
+    use cedra_std::bcs;
     use holdemgame::chips;
     use holdemgame::hand_eval;
     use holdemgame::pot_manager::{Self, PotState};
@@ -207,9 +208,13 @@ module holdemgame::texas_holdem {
         assert!(exists<Table>(table_addr), E_TABLE_NOT_FOUND);
         let table = borrow_global_mut<Table>(table_addr);
         
+        // Prevent joining while table is paused
+        assert!(!table.is_paused, E_INVALID_ACTION);
+        
         assert!(seat_idx < MAX_PLAYERS, E_TABLE_FULL);
         assert!(option::is_none(vector::borrow(&table.seats, seat_idx)), E_SEAT_TAKEN);
         assert!(buy_in_chips >= table.config.min_buy_in, E_BUY_IN_TOO_LOW);
+        assert!(buy_in_chips <= table.config.max_buy_in, E_BUY_IN_TOO_HIGH);
         assert!(buy_in_chips <= table.config.max_buy_in, E_BUY_IN_TOO_HIGH);
         
         let player_addr = signer::address_of(player);
@@ -692,11 +697,12 @@ module holdemgame::texas_holdem {
         let table = borrow_global_mut<Table>(table_addr);
         assert!(option::is_some(&table.game), E_NO_GAME);
         
-        let player_addr = signer::address_of(player);
-        
-        // Find player's hand index using seats directly
+        // Enforce commit deadline - reject late commits
         let game = option::borrow(&table.game);
         assert!(game.phase == PHASE_COMMIT, E_WRONG_PHASE);
+        assert!(timestamp::now_seconds() <= game.commit_deadline, E_NO_TIMEOUT);
+        
+        let player_addr = signer::address_of(player);
         let hand_idx = find_player_hand_idx(&game.players_in_hand, &table.seats, player_addr);
         
         // Check not already committed  
@@ -726,6 +732,9 @@ module holdemgame::texas_holdem {
         // Read-only access first
         let game = option::borrow(&table.game);
         assert!(game.phase == PHASE_REVEAL, E_WRONG_PHASE);
+        // Enforce reveal deadline - reject late reveals
+        assert!(timestamp::now_seconds() <= game.reveal_deadline, E_NO_TIMEOUT);
+        
         let hand_idx = find_player_hand_idx(&game.players_in_hand, &table.seats, player_addr);
         
         assert!(vector::is_empty(vector::borrow(&game.secrets, hand_idx)), E_ALREADY_REVEALED);
@@ -1529,12 +1538,20 @@ module holdemgame::texas_holdem {
     }
 
     fun shuffle_deck_internal(game: &mut Game) {
+        // Build seed from all player secrets
         let seed = vector::empty<u8>();
         let i = 0u64;
         while (i < vector::length(&game.secrets)) {
             vector::append(&mut seed, *vector::borrow(&game.secrets, i));
             i = i + 1;
         };
+        
+        // ENHANCED RANDOMNESS: Add block timestamp for unpredictability
+        // This prevents players from precomputing favorable secrets since
+        // the exact shuffle also depends on when all reveals complete
+        let timestamp_bytes = bcs::to_bytes(&timestamp::now_seconds());
+        vector::append(&mut seed, timestamp_bytes);
+        
         let seed_hash = hash::sha3_256(seed);
         
         let deck = vector::empty<u8>();

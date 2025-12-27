@@ -213,4 +213,32 @@ module holdemgame::hand_eval_tests {
         assert!(hand_type == 4, 1); // STRAIGHT
         assert!(tiebreaker == 3, 2); // 5-high
     }
+
+    // ============================================
+    // INPUT VALIDATION TESTS
+    // ============================================
+
+    #[test]
+    #[expected_failure(abort_code = 1, location = holdemgame::hand_eval)]
+    fun test_wrong_card_count_6_cards() {
+        // Only 6 cards - should fail
+        let cards = vector[0u8, 1, 2, 3, 4, 5];
+        hand_eval::evaluate_hand(cards);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 1, location = holdemgame::hand_eval)]
+    fun test_wrong_card_count_8_cards() {
+        // 8 cards - should fail
+        let cards = vector[0u8, 1, 2, 3, 4, 5, 6, 7];
+        hand_eval::evaluate_hand(cards);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 2, location = holdemgame::hand_eval)]
+    fun test_duplicate_cards_fails() {
+        // 7 cards but with duplicate (card 0 appears twice)
+        let cards = vector[0u8, 0, 1, 2, 3, 4, 5];
+        hand_eval::evaluate_hand(cards);
+    }
 }
