@@ -2,51 +2,56 @@
  * Card encryption/decryption utilities
  * 
  * Cards are XOR-encrypted using per-player keys derived from their commit secrets.
- * The contract uses: key = SHA3-256("holdem_cards" || secret || seat_idx)
+ * The contract uses: key = SHA3-256(secret || "HOLECARDS" || BCS(seat_idx_u64))
  */
 
 import { sha3_256 } from "@noble/hashes/sha3";
 
 /**
  * Derive a card decryption key from the player's secret and seat index.
- * Matches the contract's derive_card_key function exactly.
+ * Matches the contract's derive_card_key function EXACTLY.
  * 
- * Contract implementation:
+ * Contract implementation (texas_holdem.move:1683-1691):
  * ```move
  * fun derive_card_key(secret: &vector<u8>, seat_idx: u64): vector<u8> {
- *     let seed = b"holdem_cards";
- *     vector::append(&mut seed, *secret);
- *     vector::push_back(&mut seed, (seat_idx as u8));
- *     hash::sha3_256(seed)
+ *     let key_material = vector::empty<u8>();
+ *     vector::append(&mut key_material, *secret);          // 1. SECRET bytes
+ *     vector::append(&mut key_material, b"HOLECARDS");     // 2. "HOLECARDS" (9 bytes)
+ *     let seat_bytes = bcs::to_bytes(&seat_idx);           // 3. BCS-encoded u64 (8 bytes LE)
+ *     vector::append(&mut key_material, seat_bytes);
+ *     hash::sha3_256(key_material)
  * }
  * ```
  * 
- * @param secret - The player's reveal secret (hex string or Uint8Array)
+ * @param secret - The player's reveal secret (same string sent to contract via TextEncoder)
  * @param seatIdx - The player's seat index (0-4)
  * @returns 32-byte key as Uint8Array
  */
 export function deriveCardKey(secret: string | Uint8Array, seatIdx: number): Uint8Array {
-    // Convert secret to Uint8Array if it's a hex string
+    // Convert secret to bytes using TextEncoder - matches how reveal sends it
     let secretBytes: Uint8Array;
     if (typeof secret === 'string') {
-        // Remove 0x prefix if present
-        const hex = secret.startsWith('0x') ? secret.slice(2) : secret;
-        secretBytes = new Uint8Array(hex.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []);
+        secretBytes = new TextEncoder().encode(secret);
     } else {
         secretBytes = secret;
     }
 
-    // Create the input: "holdem_cards" || secret || seat_idx (as u8)
-    const domainSeparator = new TextEncoder().encode("holdem_cards");
-    const seatByte = new Uint8Array([seatIdx]);
+    // Domain separator must match contract EXACTLY: "HOLECARDS" (9 bytes)
+    const domainSeparator = new TextEncoder().encode("HOLECARDS");
 
-    // Combine all parts
-    const combined = new Uint8Array(domainSeparator.length + secretBytes.length + 1);
-    combined.set(domainSeparator, 0);
-    combined.set(secretBytes, domainSeparator.length);
-    combined.set(seatByte, domainSeparator.length + secretBytes.length);
+    // Seat index as BCS-encoded u64 (8 bytes, little-endian)
+    // BCS for u64 is just 8 bytes in little-endian format
+    const seatBytes = new Uint8Array(8);
+    const view = new DataView(seatBytes.buffer);
+    view.setBigUint64(0, BigInt(seatIdx), true); // true = little-endian
 
-    // Hash with SHA3-256 (same as contract's cedra_std::hash::sha3_256)
+    // Combine in CONTRACT ORDER: secret || "HOLECARDS" || seat_idx_bcs
+    const combined = new Uint8Array(secretBytes.length + domainSeparator.length + seatBytes.length);
+    combined.set(secretBytes, 0);
+    combined.set(domainSeparator, secretBytes.length);
+    combined.set(seatBytes, secretBytes.length + domainSeparator.length);
+
+    // Hash with SHA3-256
     return sha3_256(combined);
 }
 
