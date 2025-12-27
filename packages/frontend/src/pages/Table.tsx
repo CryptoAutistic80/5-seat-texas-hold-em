@@ -403,6 +403,9 @@ export function Table() {
                                 selectedSeat={selectedSeat}
                                 encryptedHoleCards={encryptedHoleCards}
                                 playersInHand={playersInHand}
+                                tableAddress={address}
+                                playerAddress={account?.address?.toString()}
+                                handNumber={tableState?.handNumber ?? 0}
                             />
                         </div>
                     </section>

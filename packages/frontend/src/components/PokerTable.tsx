@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { decodeCard, PHASE_NAMES, STATUS_NAMES, GAME_PHASES } from "../config/contracts";
+import { decryptHoleCards, getStoredSecret, areCardsValid } from "../utils/cardCrypto";
 import type { SeatInfo, GameState } from "../types";
 import "./PokerTable.css";
 
@@ -11,6 +13,10 @@ interface PokerTableProps {
     selectedSeat?: number | null;
     encryptedHoleCards?: number[][];
     playersInHand?: number[];
+    // New props for decryption
+    tableAddress?: string;
+    playerAddress?: string;
+    handNumber?: number;
 }
 
 export function PokerTable({
@@ -22,6 +28,9 @@ export function PokerTable({
     selectedSeat,
     encryptedHoleCards = [],
     playersInHand = [],
+    tableAddress = "",
+    playerAddress = "",
+    handNumber = 0,
 }: PokerTableProps) {
     // Position seats around an oval table (visual positions)
     // Position 0 = bottom center (where the connected player should always be)
@@ -47,15 +56,62 @@ export function PokerTable({
     const isActionOn = (seatIdx: number) =>
         gameState?.actionOn?.seatIndex === seatIdx;
 
+    // Decrypt player's own hole cards using stored secret
+    const decryptedPlayerCards = useMemo(() => {
+        if (playerSeat === null || !tableAddress || !playerAddress || handNumber <= 0) {
+            return null;
+        }
+
+        const handIdx = playersInHand.indexOf(playerSeat);
+        if (handIdx === -1 || handIdx >= encryptedHoleCards.length) {
+            return null;
+        }
+
+        const encryptedCards = encryptedHoleCards[handIdx];
+        if (!encryptedCards || encryptedCards.length !== 2) {
+            return null;
+        }
+
+        // Retrieve the stored secret for this hand
+        const secret = getStoredSecret(tableAddress, playerAddress, handNumber);
+        if (!secret) {
+            console.log("[DEBUG] No stored secret found for decryption");
+            return null;
+        }
+
+        // Decrypt the cards
+        const decrypted = decryptHoleCards(encryptedCards, secret, playerSeat);
+
+        // Validate decryption result
+        if (areCardsValid(decrypted)) {
+            console.log("[DEBUG] Decrypted cards:", decrypted);
+            return decrypted;
+        } else {
+            console.warn("[DEBUG] Decrypted cards invalid:", decrypted);
+            return null;
+        }
+    }, [playerSeat, tableAddress, playerAddress, handNumber, playersInHand, encryptedHoleCards]);
+
     // Get hole cards for a specific seat index
-    // Note: Cards returned are encrypted - frontend decrypts using player's secret
-    const getHoleCardsForSeat = (seatIdx: number): number[] => {
+    // For player's own seat, returns decrypted cards; for others, returns encrypted (displayed as backs)
+    const getHoleCardsForSeat = (seatIdx: number): { cards: number[]; isDecrypted: boolean } => {
         // Cards are only dealt in PREFLOP phase or later (phase >= 3)
-        if (!gameState || gameState.phase < GAME_PHASES.PREFLOP) return [];
+        if (!gameState || gameState.phase < GAME_PHASES.PREFLOP) {
+            return { cards: [], isDecrypted: false };
+        }
 
         const handIdx = playersInHand.indexOf(seatIdx);
-        if (handIdx === -1 || handIdx >= encryptedHoleCards.length) return [];
-        return encryptedHoleCards[handIdx] || [];
+        if (handIdx === -1 || handIdx >= encryptedHoleCards.length) {
+            return { cards: [], isDecrypted: false };
+        }
+
+        // For player's own seat, use decrypted cards if available
+        if (seatIdx === playerSeat && decryptedPlayerCards) {
+            return { cards: decryptedPlayerCards, isDecrypted: true };
+        }
+
+        // For other seats, return encrypted cards (will be shown as backs)
+        return { cards: encryptedHoleCards[handIdx] || [], isDecrypted: false };
     };
 
     // Create array of visual positions [0,1,2,3,4] and render seats in that order
@@ -98,7 +154,7 @@ export function PokerTable({
                 {visualPositions.map((visualPos) => {
                     const actualIdx = getActualSeatIdx(visualPos);
                     const seat = seats[actualIdx];
-                    const playerHoleCards = getHoleCardsForSeat(actualIdx);
+                    const holeCardData = getHoleCardsForSeat(actualIdx);
 
                     return (
                         <div
@@ -120,13 +176,13 @@ export function PokerTable({
                             {seat ? (
                                 <div className="seat-content">
                                     {/* Hole cards display */}
-                                    {playerHoleCards.length === 2 && (
+                                    {holeCardData.cards.length === 2 && (
                                         <div className="hole-cards">
-                                            {/* Show face-up cards for own seat or at showdown, otherwise show card backs */}
-                                            {actualIdx === playerSeat || gameState?.phase === GAME_PHASES.SHOWDOWN ? (
+                                            {/* Show face-up cards for own seat (if decrypted) or at showdown, otherwise show card backs */}
+                                            {(actualIdx === playerSeat && holeCardData.isDecrypted) || gameState?.phase === GAME_PHASES.SHOWDOWN ? (
                                                 <>
-                                                    <Card value={playerHoleCards[0]} size="small" />
-                                                    <Card value={playerHoleCards[1]} size="small" />
+                                                    <Card value={holeCardData.cards[0]} size="small" />
+                                                    <Card value={holeCardData.cards[1]} size="small" />
                                                 </>
                                             ) : (
                                                 <>

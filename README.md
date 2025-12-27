@@ -82,7 +82,7 @@ The Move smart contracts handle:
 | Module | Description |
 |--------|-------------|
 | `texas_holdem.move` | Core game logic (Move Object tables, encrypted cards, betting) |
-| `chips.move` | Chip/token management (1 CEDRA = 1000 chips) |
+| `chips.move` | Chip/token management (1000 chips = 1 CEDRA; 1 chip = 0.001 CEDRA) |
 | `hand_eval.move` | Poker hand evaluation (High Card → Royal Flush) |
 | `pot_manager.move` | Pot calculation and side pot management |
 | `poker_events.move` | 25 on-chain event types |
@@ -109,7 +109,7 @@ This version includes comprehensive security improvements from the second audit:
 | **Input Validation** | Commit hashes (32 bytes) and secrets (16-32 bytes) validated |
 | **One Seat Per Address** | Same address cannot occupy multiple seats |
 | **Block Height Randomness** | Uses block height instead of manipulable timestamps |
-| **Exact Chip Multiples** | No silent rounding loss on chip purchases |
+| **Exact Chip Multiples** | Enforces 0.001 CEDRA (1 chip) multiples; no rounding loss |
 
 ## 🚀 GitHub Pages Deployment
 

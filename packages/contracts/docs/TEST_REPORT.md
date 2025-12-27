@@ -30,6 +30,7 @@
 - ✅ Fee accumulator system
 - ✅ Config validation (blinds, buy-ins)
 - ✅ Missed blinds tracking
+- ✅ Exact chip multiples enforcement (1 chip = 0.001 CEDRA)
 
 ---
 
