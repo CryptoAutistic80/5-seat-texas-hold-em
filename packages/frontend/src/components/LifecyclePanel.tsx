@@ -52,7 +52,8 @@ function loadStoredSecret(tableAddress: string, playerAddress: string | null | u
     const key = getSecretStorageKey(tableAddress, playerAddress, handNumber);
     if (!key || typeof window === "undefined") return "";
     try {
-        return localStorage.getItem(key) || "";
+        // LOW-2 Fix: Use sessionStorage (cleared when tab closes) instead of localStorage
+        return sessionStorage.getItem(key) || "";
     } catch {
         return "";
     }
@@ -67,13 +68,14 @@ function saveSecret(
     const key = getSecretStorageKey(tableAddress, playerAddress, handNumber);
     if (!key || typeof window === "undefined") return;
     try {
+        // LOW-2 Fix: Use sessionStorage (cleared when tab closes) instead of localStorage
         if (secret) {
-            localStorage.setItem(key, secret);
+            sessionStorage.setItem(key, secret);
         } else {
-            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
         }
     } catch {
-        // localStorage may be unavailable
+        // sessionStorage may be unavailable
     }
 }
 

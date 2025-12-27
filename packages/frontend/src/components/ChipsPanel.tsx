@@ -89,6 +89,11 @@ export function ChipsPanel({ balance, onBalanceRefresh }: ChipsPanelProps) {
     const buyChipEstimate = buyOctas > 0 ? Math.floor(buyOctas / OCTAS_PER_CHIP) : 0;
     const buyExceedsBalance = hasCedraBalance && buyOctas > cedraBalanceOctas;
     const buyLeavesNoGas = hasCedraBalance && buyOctas > 0 && cedraBalanceOctas - buyOctas < MIN_GAS_OCTAS;
+    // LOW-1 Fix: Ensure buy amount is exact multiple of OCTAS_PER_CHIP to prevent rounding errors
+    const buyNotExactMultiple = buyOctas > 0 && buyOctas % OCTAS_PER_CHIP !== 0;
+    // Calculate the rounded-down exact multiple for suggestion
+    const suggestedBuyOctas = Math.floor(buyOctas / OCTAS_PER_CHIP) * OCTAS_PER_CHIP;
+    const suggestedBuyCedra = suggestedBuyOctas / OCTAS_PER_CEDRA;
 
     const cashChipValue = Number(cashAmount);
     const cashCedraEstimate = Number.isFinite(cashChipValue) ? cashChipValue / CHIPS_PER_CEDRA : 0;
@@ -106,7 +111,8 @@ export function ChipsPanel({ balance, onBalanceRefresh }: ChipsPanelProps) {
         !Number.isFinite(buyCedraValue) ||
         buyOctas < OCTAS_PER_CHIP ||
         !Number.isSafeInteger(buyOctas) ||
-        buyExceedsBalance;
+        buyExceedsBalance ||
+        buyNotExactMultiple;
 
     const cashDisabled =
         !connected ||
@@ -123,13 +129,16 @@ export function ChipsPanel({ balance, onBalanceRefresh }: ChipsPanelProps) {
         treasuryBalancePending;
 
     const buyHint = useMemo(() => {
-        if (!buyAmount) return "Minimum 0.001 CEDRA (1 chip).";
+        if (!buyAmount) return "Enter CEDRA in multiples of 0.001 (1 chip).";
         if (!Number.isFinite(buyCedraValue) || buyCedraValue <= 0) return "Enter a valid CEDRA amount.";
         if (buyExceedsBalance) return "Insufficient CEDRA balance for this purchase.";
         if (buyChipEstimate < 1) return "Minimum 0.001 CEDRA (1 chip).";
+        if (buyNotExactMultiple) {
+            return `Amount must be exact chip multiple. Try ${suggestedBuyCedra.toFixed(3)} CEDRA for ${buyChipEstimate} chips.`;
+        }
         if (buyLeavesNoGas) return "Leave ~0.00002 CEDRA for gas after purchase.";
-        return `Estimated ${buyChipEstimate.toLocaleString()} chips.`;
-    }, [buyAmount, buyCedraValue, buyChipEstimate, buyExceedsBalance, buyLeavesNoGas]);
+        return `Buying ${buyChipEstimate.toLocaleString()} chips.`;
+    }, [buyAmount, buyCedraValue, buyChipEstimate, buyExceedsBalance, buyLeavesNoGas, buyNotExactMultiple, suggestedBuyCedra]);
 
     const cashHint = useMemo(() => {
         if (!cashAmount) return "Enter chips to cash out.";
@@ -178,6 +187,15 @@ export function ChipsPanel({ balance, onBalanceRefresh }: ChipsPanelProps) {
 
         if (buyOctas < OCTAS_PER_CHIP || buyChipEstimate < 1) {
             setStatus({ type: "error", message: "Minimum purchase is 0.001 CEDRA (1 chip)." });
+            return;
+        }
+
+        // LOW-1 Fix: Ensure exact multiple to prevent contract E_NOT_EXACT_MULTIPLE error
+        if (buyNotExactMultiple) {
+            setStatus({
+                type: "error",
+                message: `Amount must be exact chip multiple. Try ${suggestedBuyCedra.toFixed(3)} CEDRA.`,
+            });
             return;
         }
 

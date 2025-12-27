@@ -403,19 +403,19 @@ export function useTableView() {
         }
     }, []);
 
-    const getHoleCards = useCallback(async (tableAddress: string): Promise<number[][]> => {
+    const getEncryptedHoleCards = useCallback(async (tableAddress: string): Promise<number[][]> => {
         try {
             const result = await cedra.view({
                 payload: {
-                    function: `${MODULES.TEXAS_HOLDEM}::get_hole_cards`,
+                    function: `${MODULES.TEXAS_HOLDEM}::get_encrypted_hole_cards`,
                     functionArguments: [tableAddress],
                 },
             });
             // Debug log to trace the raw response
-            console.log("[DEBUG] getHoleCards raw result:", result[0]);
+            console.log("[DEBUG] getEncryptedHoleCards raw result:", result[0]);
             return normalizeNestedU8Vectors(result[0]);
         } catch (e) {
-            console.warn("Failed to get hole cards:", e);
+            console.warn("Failed to get encrypted hole cards:", e);
             return [];
         }
     }, []);
@@ -471,7 +471,7 @@ export function useTableView() {
         getAdmin,
         getPendingLeaves,
         getSeatCount,
-        getHoleCards,
+        getEncryptedHoleCards,
         getPlayersInHand,
         getCommitStatus,
     };

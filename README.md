@@ -10,11 +10,11 @@ flowchart LR
     B --> C[Start Hand]
     C --> D[Commit Phase]
     D --> E[Reveal Phase]
-    E --> F[Deal Cards]
+    E --> F[Deal Encrypted Cards]
     F --> G[Betting Rounds]
     G --> H{Winner?}
     H -->|Fold Win| I[Payout]
-    H -->|Showdown| J[Evaluate Hands]
+    H -->|Showdown| J[Decrypt & Evaluate]
     J --> I
     I --> C
 ```
@@ -26,7 +26,7 @@ flowchart LR
 ├── packages/
 │   ├── contracts/          # Move smart contracts
 │   │   ├── sources/        # Contract source files
-│   │   ├── tests/          # Contract tests (79 tests)
+│   │   ├── tests/          # Contract tests (86 tests)
 │   │   ├── docs/           # Contract documentation
 │   │   └── Move.toml       # Move package config
 │   └── frontend/           # React + TypeScript frontend
@@ -81,8 +81,8 @@ The Move smart contracts handle:
 
 | Module | Description |
 |--------|-------------|
-| `texas_holdem.move` | Core game logic (table management, betting, hand progression) |
-| `chips.move` | Chip/token management (1 CEDRA = 1000 chips) |
+| `texas_holdem.move` | Core game logic (Move Object tables, encrypted cards, betting) |
+| `chips.move` | Chip/token management (1000 chips = 1 CEDRA; 1 chip = 0.001 CEDRA) |
 | `hand_eval.move` | Poker hand evaluation (High Card → Royal Flush) |
 | `pot_manager.move` | Pot calculation and side pot management |
 | `poker_events.move` | 25 on-chain event types |
@@ -90,12 +90,26 @@ The Move smart contracts handle:
 ### Current Deployment
 
 - **Network:** Cedra Testnet
-- **Address:** `0x4d5a5fa1dae6d81ed71492a873fc358766a2d55d7020c44bd5b9e68f9ca1dbf5`
+- **Address:** `0xa24365cad90b74eca7f078f8c91b327c0716bcea3ed64dc9d97027b605b4fcfa`
+- **Version:** 7.0.1 (close_table fix)
 - **Fee Rate:** 0.5% (with fractional accumulator for precise collection)
 
 See [`packages/contracts/docs/DOCUMENTATION.md`](packages/contracts/docs/DOCUMENTATION.md) for detailed contract documentation.
 
 See [`packages/contracts/docs/DEPLOYMENT.md`](packages/contracts/docs/DEPLOYMENT.md) for deployment history and instructions.
+
+## 🔒 Security Features (v7.0.0)
+
+This version includes comprehensive security improvements from the second audit:
+
+| Feature | Description |
+|---------|-------------|
+| **Non-Custodial Tables** | Tables are Move Objects; funds held at table address, not admin |
+| **Encrypted Hole Cards** | XOR-encrypted with per-player keys derived from secrets |
+| **Input Validation** | Commit hashes (32 bytes) and secrets (16-32 bytes) validated |
+| **One Seat Per Address** | Same address cannot occupy multiple seats |
+| **Block Height Randomness** | Uses block height instead of manipulable timestamps |
+| **Exact Chip Multiples** | Enforces 0.001 CEDRA (1 chip) multiples; no rounding loss |
 
 ## 🚀 GitHub Pages Deployment
 
@@ -149,7 +163,7 @@ Create `packages/frontend/.env`:
 
 ```env
 VITE_NETWORK=testnet
-VITE_CONTRACT_ADDRESS=0x4d5a5fa1dae6d81ed71492a873fc358766a2d55d7020c44bd5b9e68f9ca1dbf5
+VITE_CONTRACT_ADDRESS=0xda25a2e27020e30031b4ae037e6c32b22a9a2f909c4bfecc5f020f3a2028f8ea
 ```
 
 ## 📄 License

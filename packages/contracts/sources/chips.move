@@ -35,6 +35,8 @@ module holdemgame::chips {
     const E_ZERO_AMOUNT: u64 = 6;
     /// Treasury doesn't have enough CEDRA for cashout
     const E_TREASURY_INSUFFICIENT: u64 = 7;
+    /// Amount is not an exact multiple for chip conversion
+    const E_NOT_EXACT_MULTIPLE: u64 = 8;
 
     // ============================================
     // CONSTANTS
@@ -44,6 +46,8 @@ module holdemgame::chips {
     const CHIPS_PER_CEDRA: u64 = 1000;
     /// Octas per CEDRA
     const OCTAS_PER_CEDRA: u64 = 100_000_000;
+    /// Octas per chip (100_000_000 / 1000 = 100_000)
+    const OCTAS_PER_CHIP: u64 = 100_000;
     /// Chip decimals (for display)
     const CHIP_DECIMALS: u8 = 0;
 
@@ -77,6 +81,11 @@ module holdemgame::chips {
     /// Creates the fungible asset metadata and ChipManager resource
     fun init_module(deployer: &signer) {
         let deployer_addr = signer::address_of(deployer);
+        
+        // CRITICAL: Prevent reinitialization attack
+        // Without this check, a malicious redeploy could reset chip supply,
+        // override admin, and seize the treasury
+        assert!(!exists<ChipManager>(@holdemgame), E_ALREADY_INITIALIZED);
         
         // Create the FA metadata object
         let constructor_ref = object::create_named_object(deployer, b"POKER_CHIPS");
@@ -126,6 +135,9 @@ module holdemgame::chips {
     public entry fun buy_chips(player: &signer, cedra_amount: u64) acquires ChipManager {
         assert!(cedra_amount > 0, E_ZERO_AMOUNT);
         assert!(exists<ChipManager>(@holdemgame), E_NOT_INITIALIZED);
+        
+        // LOW-1 Fix: Enforce exact chip multiples to prevent silent value loss
+        assert!(cedra_amount % OCTAS_PER_CHIP == 0, E_NOT_EXACT_MULTIPLE);
         
         let manager = borrow_global_mut<ChipManager>(@holdemgame);
         
@@ -266,6 +278,20 @@ module holdemgame::chips {
     /// Get exchange rate (chips per CEDRA)
     public fun get_exchange_rate(): u64 {
         CHIPS_PER_CEDRA
+    }
+
+    #[view]
+    /// Get total chips currently in circulation
+    /// Useful for auditing and transparency
+    public fun get_total_chip_supply(): u128 acquires ChipManager {
+        if (!exists<ChipManager>(@holdemgame)) { return 0 };
+        let manager = borrow_global<ChipManager>(@holdemgame);
+        let supply_opt = fungible_asset::supply(manager.metadata);
+        if (option::is_some(&supply_opt)) {
+            option::extract(&mut supply_opt)
+        } else {
+            0
+        }
     }
 
     // ============================================

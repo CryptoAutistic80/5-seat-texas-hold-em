@@ -17,7 +17,7 @@ import "./Table.css";
 export function Table() {
     const { address } = useParams<{ address: string }>();
     const { connected, account } = useWallet();
-    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getHoleCards, getPlayersInHand, getCommitStatus } = useTableView();
+    const { getTableConfig, getTableState, getAllSeats, getFullGameState, getAdmin, isPaused, isAdminOnlyStart, getPendingLeaves, getEncryptedHoleCards, getPlayersInHand, getCommitStatus } = useTableView();
     const { joinTable } = useContractActions();
     const { getBalance } = useChipsView();
     const { getHandResultEvents } = useEventView();
@@ -40,7 +40,7 @@ export function Table() {
     const [adminOnlyStart, setAdminOnlyStart] = useState(false);
     const [pendingLeaves, setPendingLeaves] = useState<boolean[]>([false, false, false, false, false]);
     const [adminOpen, setAdminOpen] = useState(false);
-    const [holeCards, setHoleCards] = useState<number[][]>([]);
+    const [encryptedHoleCards, setEncryptedHoleCards] = useState<number[][]>([]);
     const [playersInHand, setPlayersInHand] = useState<number[]>([]);
     const [commitStatus, setCommitStatus] = useState<boolean[]>([]);
 
@@ -72,10 +72,10 @@ export function Table() {
                 isPaused(address),
                 isAdminOnlyStart(address),
                 getPendingLeaves(address),
-                getHoleCards(address),
+                getEncryptedHoleCards(address),
                 getPlayersInHand(address),
                 getCommitStatus(address),
-            ]);
+            ]) as [Awaited<ReturnType<typeof getTableConfig>>, Awaited<ReturnType<typeof getTableState>>, Awaited<ReturnType<typeof getAllSeats>>, Awaited<ReturnType<typeof getFullGameState>>, string, boolean, boolean, boolean[], number[][], number[], boolean[]];
 
             // Detect hand completion: phase transitions from active to WAITING
             // Active phases are PREFLOP (3) through SHOWDOWN (7)
@@ -139,7 +139,7 @@ export function Table() {
             setTablePaused(paused);
             setAdminOnlyStart(adminOnly);
             setPendingLeaves(leaves);
-            setHoleCards(holeCardsData);
+            setEncryptedHoleCards(holeCardsData);
             setPlayersInHand(playersData);
             setCommitStatus(commitStatusData);
 
@@ -401,8 +401,11 @@ export function Table() {
                                 playerSeat={playerSeat}
                                 onSeatSelect={handleSeatSelect}
                                 selectedSeat={selectedSeat}
-                                holeCards={holeCards}
+                                encryptedHoleCards={encryptedHoleCards}
                                 playersInHand={playersInHand}
+                                tableAddress={address}
+                                playerAddress={account?.address?.toString()}
+                                handNumber={tableState?.handNumber ?? 0}
                             />
                         </div>
                     </section>
